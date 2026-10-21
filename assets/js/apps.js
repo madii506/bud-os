@@ -399,7 +399,7 @@ export function installApps(X) {
   A.display = {
     title: 'display — settings', short: 'display', icon: 'display', w: 440, h: 430, nomax: true,
     build(el) {
-      const opts = [['crt', 'crt scanlines', 'the old monitor look'], ['eyes', 'the watcher', 'the big bud on the wallpaper'], ['grid', 'grow grid', 'the faint grid on the wallpaper'], ['pets', 'buds on the taskbar', 'they walk around when they work'], ['toasts', 'job pop-ups', 'a note every time a bud does a job']];
+      const opts = [['crt', 'crt scanlines', 'the old monitor look'], ['grid', 'grow grid', 'the faint grid on the wallpaper'], ['pets', 'buds on the taskbar', 'they walk around when they work'], ['toasts', 'job pop-ups', 'a note every time a bud does a job']];
       el.innerHTML = `<div class="pad disp">${opts.map(([k, t, s]) => `<label class="tog"><input type="checkbox" data-k="${k}"><span><b>${t}</b><small>${s}</small></span></label>`).join('')}
         <label class="field"><span>volume</span><input type="range" min="0" max="1" step="0.05" class="vol"></label>
         <div class="row"><button class="btn" type="button" data-x="mute">mute</button><button class="btn" type="button" data-x="intro">replay the greenhouse</button></div></div>`;

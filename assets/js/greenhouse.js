@@ -363,7 +363,7 @@ export function build(scene, mobile) {
     g.strokeStyle = 'rgba(92,240,138,.055)'; g.lineWidth = 1; for (let x = 0; x <= CW; x += 16) { g.beginPath(); g.moveTo(x + .5, 0); g.lineTo(x + .5, CH); g.stroke(); } for (let y = 0; y <= CH; y += 16) { g.beginPath(); g.moveTo(0, y + .5); g.lineTo(CW, y + .5); g.stroke(); }
     // header
     g.fillStyle = '#0a2414'; g.fillRect(0, 0, CW, 64); g.fillStyle = CD; g.fillRect(0, 64, CW, 4);
-    ctxt(g, 'BAGWORK.SYS', 28, 46, 38, CG); ctxt(g, 'NODE 07', 560, 44, 24, CM); ctxt(g, 'LIVE', 924, 44, 24, CR);
+    ctxt(g, 'NODE 07', 28, 44, 26, CM); ctxt(g, 'LIVE', 924, 44, 24, CR);
     ctxt(g, 'pid 0007   uptime 19d 04:13   sleep: none   owner: ???', 28, 98, 20, CM, 'VT');
     // wires: dotted, square, arrowheads at the end
     const wire = (pts, c) => { for (let i = 1; i < pts.length; i++) { const [x1, y1] = pts[i - 1], [x2, y2] = pts[i], n = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1)) / 16 | 0; for (let k = 0; k <= n; k++) cpx(g, Math.round(x1 + (x2 - x1) * k / Math.max(1, n)) - 4, Math.round(y1 + (y2 - y1) * k / Math.max(1, n)) - 4, c, 8); } };

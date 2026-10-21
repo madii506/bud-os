@@ -12,7 +12,7 @@ const hz = m => 440 * Math.pow(2, (m - 69) / 12);
 export function createSound(store) {
   const get = (k, d) => { try { const v = store.get(k); return v == null ? d : v; } catch { return d; } };
   let ctx = null, master, musicBus, sfxBus, verb, echo, noiseBuf, rain = null, started = false, timer = 0, analyser = null;
-  let muted = get('bud:mute', '0') === '1', vol = Math.max(0, Math.min(1, parseFloat(get('bud:vol', '.7')) || .7)), scene = 'intro';
+  let muted = get('bud:mute', '0') === '1', vol = Math.max(0, Math.min(1, parseFloat(get('bud:vol', '.8')) || .8)), scene = 'intro';
   let step = 0, nextT = 0, seed = 7;
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const listeners = new Set();
@@ -100,7 +100,7 @@ export function createSound(store) {
   function startMusic() {
     if (timer) return;
     nextT = ctx.currentTime + .15; step = 0;
-    musicBus.gain.cancelScheduledValues(ctx.currentTime); musicBus.gain.setValueAtTime(musicBus.gain.value, ctx.currentTime); musicBus.gain.linearRampToValueAtTime(scene === 'desk' ? .62 : .7, ctx.currentTime + 6);
+    musicBus.gain.cancelScheduledValues(ctx.currentTime); musicBus.gain.setValueAtTime(musicBus.gain.value, ctx.currentTime); musicBus.gain.linearRampToValueAtTime(scene === 'desk' ? .78 : .86, ctx.currentTime + 6);
     timer = setInterval(schedule, 60); schedule();
   }
   // ---------------------------------------------------------------- the room's noises
@@ -146,7 +146,7 @@ export function createSound(store) {
     scene(name) {
       scene = name; if (!ctx) return;
       const t = ctx.currentTime;
-      musicBus.gain.cancelScheduledValues(t); musicBus.gain.setValueAtTime(musicBus.gain.value, t); musicBus.gain.linearRampToValueAtTime(name === 'desk' ? .62 : .7, t + 3);
+      musicBus.gain.cancelScheduledValues(t); musicBus.gain.setValueAtTime(musicBus.gain.value, t); musicBus.gain.linearRampToValueAtTime(name === 'desk' ? .78 : .86, t + 3);
       if (rain) rain.g.gain.setTargetAtTime(name === 'intro' ? .07 : .016, t, 1.6);
     },
     sfx(name, arg) {

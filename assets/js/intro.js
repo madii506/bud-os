@@ -325,7 +325,7 @@ export async function run({ canvas, onEnter, onReady, mobile, status, audio }) {
   canvas.addEventListener('click', e => {
     ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight * 2 - 1));
     const b = budUnder(); if (b) return poke(b);
-    if (st.phase === 'film') return skip();
+    if (st.phase === 'film') { if (!st.clicked) { st.clicked = true; return; } return skip(); }
     if (st.phase === 'ready' && onScreen()) dive('');
   });
   if (skipBtn) skipBtn.onclick = e => { e.stopPropagation(); skip(); };

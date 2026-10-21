@@ -16,8 +16,10 @@ const ss = { get(k) { try { return sessionStorage.getItem(k); } catch { return n
 const ls = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
 const SOUND = createSound(ls);
 SOUND.unlock();
-const unlockOnce = () => { SOUND.unlock(); if (SOUND.on) ['pointerdown', 'keydown', 'touchend'].forEach(t => removeEventListener(t, unlockOnce, true)); };
-['pointerdown', 'keydown', 'touchend'].forEach(t => addEventListener(t, unlockOnce, true));
+// browsers only let sound start after a click, a tap or a key; the music starts on the very first one
+const UNLOCK = ['pointerdown', 'mousedown', 'pointerup', 'click', 'keydown', 'touchend'];
+const unlockOnce = () => { SOUND.unlock(); if (SOUND.on) UNLOCK.forEach(t => removeEventListener(t, unlockOnce, true)); };
+UNLOCK.forEach(t => addEventListener(t, unlockOnce, true));
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const short = a => a ? a.slice(0, 4) + '…' + a.slice(-4) : '';
@@ -71,6 +73,15 @@ async function boot() {
     const gl = document.createElement('canvas').getContext('webgl2') || document.createElement('canvas').getContext('webgl');
     if (!gl) throw new Error('no webgl');
     const { run } = await import('./intro.js?v=2');
+    // the music button: no words, just bars that move with the music. off shows a slash.
+    const sb = $('#isound');
+    if (sb) {
+      const bars = $$('i', sb), fft = new Uint8Array(64);
+      SOUND.onChange(st => { const on = !st.muted && st.on; sb.classList.toggle('on', on); sb.classList.toggle('off', !!st.muted); sb.classList.toggle('wait', !st.muted && !st.on); sb.title = st.muted ? 'music off' : 'music on'; if (!on) bars.forEach(b => b.style.height = ''); });
+      sb.onclick = e => { e.stopPropagation(); SOUND.toggle(); };
+      const eq = () => { if (!document.body.contains(sb)) return; requestAnimationFrame(eq); const an = SOUND.analyser(); if (!an || !sb.classList.contains('on')) return; an.getByteFrequencyData(fft); bars.forEach((b, i) => { b.style.height = (3 + Math.min(1, fft[1 + i * 4] / 200) * 14).toFixed(1) + 'px'; }); };
+      requestAnimationFrame(eq);
+    }
     window.__bud = await run({ canvas, mobile: MOBILE, onEnter: go, status: null, audio: SOUND, onReady: () => { $('#ihint').classList.add('on'); $('#itouch').classList.add('on'); } });
     started = true;
     requestAnimationFrame(() => canvas.classList.add('on'));
@@ -301,27 +312,14 @@ function renderTray() {
   const d = new Date(); $('#clock').textContent = d.toTimeString().slice(0, 5);
 }
 
-// ---------------------------------------------------------------- wallpaper: the grow room after hours. light from the bars above, spores drifting,
-// and one very large bud drawn in a thin green line, whose eyes follow the mouse. Everything that doesn't move is drawn once, into caches.
+// ---------------------------------------------------------------- wallpaper: the grow room after hours. light from the bars above and spores drifting.
+// Everything that doesn't move is drawn once, into a cache.
 function wallpaper() {
   const c = $('#wall'), g = c.getContext('2d'); let W = 0, H = 0, D = 1, mx = .5, my = .5, sx = .5, sy = .5, last = 0, bar = 42;
   const spores = Array.from({ length: MOBILE ? 26 : 70 }, () => ({ x: Math.random(), y: Math.random(), z: .2 + Math.random() * .8, v: .004 + Math.random() * .012, p: Math.random() * 6 }));
   const SH = [[.15, .85], [.4, 1.15], [.66, 1], [.9, .8]];
   const mk = (w, h) => { const k = document.createElement('canvas'); k.width = Math.max(1, Math.round(w)); k.height = Math.max(1, Math.round(h)); return k; };
-  let bg = null, watcher = null, flick = 0, blinkT = 2.5;
-  // the watcher's three layers, from the silhouette sprite: a dark body with a thin green edge, the grin, the eyes
-  function parts() {
-    const src = SPR.sil; if (!src) return null; const N = 32, t = mk(N, N), tg = t.getContext('2d'); tg.drawImage(src, 0, 0); const d = tg.getImageData(0, 0, N, N).data;
-    const body = mk(N, N), eyes = mk(N, N), bgc = body.getContext('2d'), eg = eyes.getContext('2d');
-    const on = (x, y) => x >= 0 && y >= 0 && x < N && y < N && d[(y * N + x) * 4 + 3] > 40; let x0 = N, x1 = 0, y0 = N, y1 = 0;
-    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-      if (!on(x, y)) continue; x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
-      const i = (y * N + x) * 4, r = d[i], gr = d[i + 1], edge = !on(x - 1, y) || !on(x + 1, y) || !on(x, y - 1) || !on(x, y + 1);
-      bgc.fillStyle = edge ? '#144528' : '#03100a'; bgc.fillRect(x, y, 1, 1);
-      if (r > 180 && gr > 180) { eg.fillStyle = '#eafff0'; eg.fillRect(x, y, 1, 1); } else if (gr > 150) { bgc.fillStyle = 'rgba(79,220,132,.72)'; bgc.fillRect(x, y, 1, 1); }
-    }
-    return { body, eyes, x0, x1, y0, y1 };
-  }
+  let bg = null, flick = 0;
   function build() {
     const floor = H - bar; bg = mk(W * D, H * D); const q = bg.getContext('2d'); q.scale(D, D);
     const gr = q.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#010403'); gr.addColorStop(.55, '#030d08'); gr.addColorStop(1, '#0a2615'); q.fillStyle = gr; q.fillRect(0, 0, W, H);
@@ -332,15 +330,6 @@ function wallpaper() {
     }
     if (X.SET.grid) { q.strokeStyle = 'rgba(92,240,138,.03)'; q.lineWidth = 1; q.beginPath(); for (let x = 0; x < W; x += 32) { q.moveTo(x + .5, 0); q.lineTo(x + .5, H); } for (let y = 0; y < H; y += 32) { q.moveTo(0, y + .5); q.lineTo(W, y + .5); } q.stroke(); }
     const fg = q.createLinearGradient(0, floor - 90, 0, floor); fg.addColorStop(0, 'rgba(92,240,138,0)'); fg.addColorStop(1, 'rgba(92,240,138,.07)'); q.fillStyle = fg; q.fillRect(0, floor - 90, W, 90);
-    // the watcher, scaled once: body and grin in one layer, the eyes with their glow in another
-    const P = parts(); watcher = null;
-    if (P) {
-      const pw = P.x1 - P.x0 + 1, ph = P.y1 - P.y0 + 1, s = Math.max(5, Math.round(Math.min(W * .8, floor * 1.05) / 46)), S = 32 * s;
-      const body = mk(S * D, S * D), bq = body.getContext('2d'); bq.imageSmoothingEnabled = false; bq.drawImage(P.body, 0, 0, S * D, S * D);
-      const pad = s * 4, eyes = mk((S + pad * 2) * D, (S + pad * 2) * D), eq = eyes.getContext('2d'); eq.imageSmoothingEnabled = false; eq.scale(D, D);
-      eq.shadowColor = 'rgba(190,255,215,.95)'; eq.shadowBlur = s * 1.8; eq.drawImage(P.eyes, pad, pad, S, S); eq.shadowBlur = 0; eq.drawImage(P.eyes, pad, pad, S, S);
-      watcher = { body, eyes, s, S, pad, pw, ph, x0: P.x0, y0: P.y0 };
-    }
   }
   const fit = () => { D = Math.min(2, devicePixelRatio || 1); W = innerWidth; H = innerHeight; c.width = Math.round(W * D); c.height = Math.round(H * D); g.setTransform(D, 0, 0, D, 0, 0); bar = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bar')) || 42; bg = null; };
   fit(); addEventListener('resize', fit); X.on('settings', () => { bg = null; });
@@ -355,13 +344,6 @@ function wallpaper() {
     // one of the bars stutters now and then
     if (Math.random() < dt / 9) flick = now;
     if (now - flick < 260 && (now / 40 | 0) % 2) { const x = SH[2][0] * W, wd = SH[2][1]; g.fillStyle = 'rgba(1,5,3,.6)'; g.beginPath(); g.moveTo(x - 34 * wd, 0); g.lineTo(x + 34 * wd, 0); g.lineTo(x + 210 * wd, floor); g.lineTo(x - 210 * wd, floor); g.closePath(); g.fill(); }
-    if (X.SET.eyes && watcher) {
-      const w = watcher, cx = W / 2 + (W > 900 ? W * .05 : 0) + (sx - .5) * -18, bx = Math.round(cx - w.pw * w.s / 2 - w.x0 * w.s), by = Math.round(floor - w.ph * w.s - w.y0 * w.s - w.s * 1.5 + Math.sin(now / 1800) * 2);
-      g.drawImage(w.body, bx, by, w.S, w.S);
-      const ex = bx + (w.x0 + w.pw * .5) * w.s, ey = by + 16 * w.s, lx = Math.max(-1, Math.min(1, (sx * W - ex) / (W * .25))), ly = Math.max(-1, Math.min(1, (sy * H - ey) / (H * .3)));
-      blinkT -= dt; if (blinkT < -.15) blinkT = 2 + Math.random() * 5;
-      if (blinkT > 0) g.drawImage(w.eyes, bx + Math.round(lx) * w.s - w.pad, by + Math.round(ly * .7) * w.s - w.pad, w.S + w.pad * 2, w.S + w.pad * 2);
-    }
     for (const p of spores) {
       p.y -= p.v * dt * (1 + p.z); p.x += Math.sin(now / 1900 + p.p) * .00035; if (p.y < -.02) { p.y = 1.02; p.x = Math.random(); }
       g.fillStyle = `rgba(170,255,200,${(.08 + p.z * .3).toFixed(2)})`; g.fillRect(Math.round(p.x * W + (sx - .5) * -60 * p.z), Math.round(p.y * H + (sy - .5) * -24 * p.z), 1 + p.z * 2.2, 1 + p.z * 2.2);
