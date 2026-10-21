@@ -432,7 +432,7 @@ export async function run({ canvas, onEnter, onReady, mobile, status, audio }) {
     }
     // in the dark only the eyes stay, brighter and brighter, then they all close
     const boost = st.eyeBoost || 1, shut = st.shut || 0;
-    P.tinyEyeM.color.setRGB(2.2 * boost, 2.8 * boost, 2.4 * boost); term.shut = shut;
+    P.tinyEyeM.color.setRGB(1.6 * boost, 2.05 * boost, 1.75 * boost); term.shut = shut;
     if (st.phase === 'dive') { P.sporeM.opacity *= 1 - (st.dark || 0); P.lamp.intensity *= 1 - clamp01(((NOW - st.diveT) / 1000 - .9) / .3); P.shadeM.emissiveIntensity *= 1 - (st.dark || 0); P.jarGlow.intensity = .25 * (1 - (st.dark || 0)); P.chartGlow.intensity = .25 * (1 - (st.dark || 0)); P.hemi.intensity *= 1 - (st.dark || 0) * .9; P.moon.intensity = .35 * (1 - (st.dark || 0)); }
     // tiny buds in the trays: they turn, a few at a time, once you are close
     for (const g of P.tiny) {

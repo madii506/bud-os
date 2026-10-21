@@ -253,7 +253,7 @@ export function build(scene, mobile) {
   // the rest face the back wall until you come close, then turn, one after another.
   const tinyBody = new THREE.SphereGeometry(.12, 16, 12), tinyLeaf = leafGeo(.11, .05);
   const tinySkin = std({ color: 0x172b1d, roughness: .5 }), tinyLeafM = std({ color: 0x3b8f52, roughness: .5, side: THREE.DoubleSide });
-  P.tinyEyeM = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 2.8, 2.4), toneMapped: false, side: THREE.DoubleSide });
+  P.tinyEyeM = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 2.05, 1.75), toneMapped: false, side: THREE.DoubleSide });
   const tEye = new THREE.Shape(); tEye.moveTo(-.016, .012); tEye.lineTo(.016, -.002); tEye.lineTo(.016, -.022); tEye.lineTo(-.016, -.022); tEye.lineTo(-.016, .012);
   const tEyeG = new THREE.ShapeGeometry(tEye);
   const TN = mobile ? 30 : 84;
