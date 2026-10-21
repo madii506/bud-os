@@ -3,58 +3,95 @@ export function installMore(X) {
   const { $, $$, esc, fsol, SOUND, ICONS } = X;
   const A = {};
 
-  // ================================================================ greenhouse: every bud in a pot on the shelves
+  // ================================================================ greenhouse: every bud in a pot on the shelves, sized by its level.
+  // rain runs down the glass, the bars hum, a watering can makes its rounds, and the last pot is always empty, waiting for yours.
   A.greenhouse = {
-    title: 'greenhouse — watch them grow', short: 'greenhouse', icon: 'greenhouse', w: 780, h: 520, minW: 360, minH: 300,
+    title: 'greenhouse — watch them grow', short: 'greenhouse', icon: 'greenhouse', w: 800, h: 540, minW: 360, minH: 300,
     build(el) {
-      el.innerHTML = `<div class="gh"><canvas></canvas><div class="gh-tip" hidden></div><div class="gh-empty" hidden><p>no buds planted yet.</p><button class="btn go" type="button">plant the first one</button></div></div>`;
-      const cv = $('canvas', el), g = cv.getContext('2d'), tip = $('.gh-tip', el); let W = 0, H = 0, slots = [], hover = null, mx = -1, my = -1, raf = 0;
-      $('.gh-empty button', el).onclick = () => X.open('launch');
-      const SC = { rookie: 1, grinder: 1.25, workhorse: 1.5, legend: 1.85 };
+      el.innerHTML = `<div class="gh"><canvas></canvas><div class="gh-tip" hidden></div></div>`;
+      const wrap = $('.gh', el), cv = $('canvas', el), g = cv.getContext('2d'), tip = $('.gh-tip', el);
+      let W = 0, H = 0, VH = 0, D = 1, slots = [], hover = null, mx = -1, my = -1, rowH = 160, per = 4, can = { i: -1, t0: 0 };
+      const SC = { rookie: 1, grinder: 1.22, workhorse: 1.45, legend: 1.75 }, TOP = 46, PADX = 46;
+      const rain = Array.from({ length: 60 }, () => ({ x: Math.random(), y: Math.random(), v: .25 + Math.random() * .5, l: 6 + Math.random() * 14 }));
+      const spores = Array.from({ length: 26 }, () => ({ x: Math.random(), y: Math.random(), v: .01 + Math.random() * .02, p: Math.random() * 6 }));
       function layout() {
-        const r = el.getBoundingClientRect(); W = cv.width = Math.max(200, r.width); H = cv.height = Math.max(160, r.height);
-        const buds = X.BUDS.slice().sort((a, b) => b.claimed - a.claimed), per = Math.max(3, Math.floor((W - 40) / 96)), shelves = Math.max(2, Math.ceil(buds.length / per)), sh = Math.max(150, (H - 30) / Math.min(shelves, 3));
-        slots = buds.map((b, i) => ({ b, x: 40 + (i % per) * ((W - 80) / Math.max(1, per - 1 || 1)), y: 30 + (Math.floor(i / per) + 1) * sh - 18, s: SC[b.level] || 1, ph: Math.random() * 6 }));
-        if (per === 1) slots.forEach(s => s.x = W / 2);
-        $('.gh-empty', el).hidden = buds.length > 0;
-        X.GH_SH = sh;
+        const r = wrap.getBoundingClientRect(); D = Math.min(2, devicePixelRatio || 1); W = Math.max(240, Math.round(r.width)); VH = Math.max(200, Math.round(r.height));
+        const buds = X.BUDS.filter(b => b.state === 'live').sort((a, b) => b.claimed - a.claimed);
+        per = Math.max(2, Math.floor((W - PADX * 2) / 104)); const n = buds.length + 1, rows = Math.max(1, Math.ceil(n / per));
+        rowH = Math.max(150, Math.min(210, (VH - TOP - 8) / Math.min(rows, 2))); H = Math.max(VH, Math.round(TOP + rows * rowH + 10));
+        cv.width = W * D; cv.height = H * D; cv.style.width = W + 'px'; cv.style.height = H + 'px'; g.setTransform(D, 0, 0, D, 0, 0);
+        const sw = (W - PADX * 2) / per;
+        slots = [...buds, null].map((b, i) => ({ b, x: Math.round(PADX + sw * (i % per) + sw / 2), y: Math.round(TOP + (Math.floor(i / per) + 1) * rowH - 26), s: b ? SC[b.level] || 1 : 1, ph: (i * 1.7) % 6, sw }));
       }
       function draw(now) {
-        raf = requestAnimationFrame(draw); if (!document.body.contains(cv) || !X.WM.isOpen('greenhouse')) return;
-        g.fillStyle = '#030a06'; g.fillRect(0, 0, W, H);
-        const sh = X.GH_SH || 160;
-        for (let y = 30 + sh - 18; y < H + sh; y += sh) {
-          // a grow bar above, its light falling onto the shelf, then the shelf
-          const top = y - sh + 26; const gr = g.createLinearGradient(0, top, 0, y); gr.addColorStop(0, 'rgba(92,240,138,.18)'); gr.addColorStop(1, 'rgba(92,240,138,0)'); g.fillStyle = gr; g.fillRect(20, top, W - 40, y - top);
-          g.fillStyle = '#c8ffd8'; g.shadowColor = '#5cf08a'; g.shadowBlur = 16; g.fillRect(30, top - 3, W - 60, 3); g.shadowBlur = 0;
-          g.fillStyle = '#1a2a22'; g.fillRect(14, y, W - 28, 8); g.fillStyle = '#0c1611'; g.fillRect(14, y + 8, W - 28, 4);
+        requestAnimationFrame(draw); if (!document.body.contains(cv) || !X.WM.isOpen('greenhouse') || document.hidden) return;
+        const t = now / 1000;
+        // the glass house at night
+        const bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#020806'); bg.addColorStop(1, '#06160d'); g.fillStyle = bg; g.fillRect(0, 0, W, H);
+        g.fillStyle = 'rgba(120,200,150,.035)'; for (let x = 60; x < W; x += 120) g.fillRect(x, 0, 3, H);
+        g.fillStyle = 'rgba(150,220,180,.18)'; for (const d of rain) { d.y += d.v * .016; if (d.y > 1.05) { d.y = -.05; d.x = Math.random(); } g.fillRect(Math.round(d.x * W), Math.round(d.y * H), 1, d.l); }
+        // header
+        const live = slots.filter(s => s.b), working = live.filter(s => s.b.workedAt && Date.now() - new Date(s.b.workedAt) < 30 * 60e3).length;
+        g.fillStyle = '#0a2414'; g.fillRect(0, 0, W, 30); g.fillStyle = '#173d25'; g.fillRect(0, 30, W, 2);
+        g.font = '16px PX, monospace'; g.textAlign = 'left'; g.fillStyle = '#5cf08a'; g.fillText('GREENHOUSE', 12, 21);
+        g.font = '16px VT, monospace'; g.fillStyle = '#7fa98b'; g.fillText(`${live.length} buds · ${working} working now · bigger pot, bigger level`, 128, 21);
+        // shelves, bars and light
+        const rows = Math.ceil(slots.length / per);
+        for (let r = 0; r < rows; r++) {
+          const y = TOP + (r + 1) * rowH - 26, top = y - rowH + 34, fl = .9 + Math.sin(t * 3 + r) * .05 + (Math.random() < .004 ? -.5 : 0);
+          const gr = g.createLinearGradient(0, top, 0, y); gr.addColorStop(0, `rgba(92,240,138,${.16 * fl})`); gr.addColorStop(1, 'rgba(92,240,138,0)'); g.fillStyle = gr;
+          g.beginPath(); g.moveTo(PADX + 10, top); g.lineTo(W - PADX - 10, top); g.lineTo(W - PADX + 14, y); g.lineTo(PADX - 14, y); g.closePath(); g.fill();
+          g.fillStyle = '#1a1b1c'; g.fillRect(PADX, top - 8, W - PADX * 2, 6); g.save(); g.shadowColor = '#5cf08a'; g.shadowBlur = 14; g.fillStyle = `rgba(214,255,226,${fl})`; g.fillRect(PADX + 8, top - 3, W - PADX * 2 - 16, 3); g.restore();
+          g.fillStyle = '#2b2116'; g.fillRect(PADX - 18, y, W - PADX * 2 + 36, 9); g.fillStyle = '#3d2f1f'; g.fillRect(PADX - 18, y, W - PADX * 2 + 36, 3); g.fillStyle = '#130e09'; g.fillRect(PADX - 18, y + 9, W - PADX * 2 + 36, 4);
+          g.fillStyle = '#1d1610'; g.fillRect(PADX - 14, y + 13, 6, 18); g.fillRect(W - PADX + 8, y + 13, 6, 18);
         }
         g.imageSmoothingEnabled = false; hover = null;
-        for (const s of slots) {
-          const size = 44 * s.s, bob = Math.round(Math.sin(now / 600 + s.ph) * 1.5), x = s.x - size / 2, y = s.y - size - 14 + bob;
+        slots.forEach((sl, i) => {
+          const size = Math.round(40 * sl.s), bob = sl.b ? Math.round(Math.sin(t * 1.7 + sl.ph) * 1.5) : 0, x = sl.x - size / 2, y = sl.y - size - 13 + bob;
           // the pot
-          g.fillStyle = '#7a3f22'; g.fillRect(s.x - 18, s.y - 16, 36, 4); g.fillStyle = '#a85a32'; g.fillRect(s.x - 15, s.y - 12, 30, 12);
-          if (s.b.level === 'legend') { g.shadowColor = 'rgba(242,193,78,.8)'; g.shadowBlur = 22; }
-          const working = s.b.workedAt && Date.now() - new Date(s.b.workedAt) < 30 * 60e3;
-          g.drawImage(X.tinted(working && (now / 900 | 0) % 6 === 0 ? X.SPR.bag : X.SPR.pet, X.hueOf(s.b.mint)) || X.SPR.pet, x, y, size, size); g.shadowBlur = 0;
-          const over = mx > x && mx < x + size && my > y && my < s.y; if (over) hover = s;
-          g.fillStyle = over ? '#eafff0' : 'rgba(180,230,195,.75)'; g.font = '12px PX, monospace'; g.textAlign = 'center'; g.fillText(s.b.budName, s.x, s.y + 22);
-          if (working && (now / 300 | 0) % 8 === 0) { g.fillStyle = '#f2c14e'; g.fillRect(s.x + size / 3, y - 6 - ((now / 60) % 10), 3, 3); }
+          g.fillStyle = '#7a3f22'; g.fillRect(sl.x - 19, sl.y - 17, 38, 5); g.fillStyle = '#a85a32'; g.fillRect(sl.x - 16, sl.y - 12, 32, 12); g.fillStyle = '#8c4a28'; g.fillRect(sl.x - 16, sl.y - 3, 32, 3); g.fillStyle = '#2a1d14'; g.fillRect(sl.x - 15, sl.y - 17, 30, 2);
+          if (!sl.b) {
+            // the empty pot: a sprout, and an invitation
+            const sw = Math.sin(t * 2) * 1; g.fillStyle = '#3fbf6a'; g.fillRect(sl.x - 1, sl.y - 27, 2, 10); g.fillRect(sl.x - 6 + sw, sl.y - 29, 5, 3); g.fillRect(sl.x + 1 + sw, sl.y - 31, 5, 3);
+            const over = Math.abs(mx - sl.x) < 40 && my > sl.y - 70 && my < sl.y + 24; if (over) hover = sl;
+            g.font = '12px PX, monospace'; g.textAlign = 'center'; g.fillStyle = over ? '#eafff0' : (t * 1.2 | 0) % 2 ? '#5cf08a' : '#2f8a52'; g.fillText('+ plant one', sl.x, sl.y + 24); return;
+          }
+          const b = sl.b, working = b.workedAt && Date.now() - new Date(b.workedAt) < 30 * 60e3;
+          if (b.level === 'legend') { g.save(); g.shadowColor = 'rgba(242,193,78,.85)'; g.shadowBlur = 20; }
+          const spr = X.tinted(working && (t * 1.1 | 0) % 5 === 0 ? X.SPR.bag : X.SPR.pet, X.hueOf(b.mint)) || X.SPR.pet;
+          g.drawImage(spr, Math.round(x), Math.round(y), size, size); if (b.level === 'legend') g.restore();
+          const over = mx > x - 6 && mx < x + size + 6 && my > y && my < sl.y + 24; if (over) hover = sl;
+          if (working && (t * 2.2 + sl.ph | 0) % 4 === 0) { g.fillStyle = '#f2c14e'; g.fillRect(Math.round(x + size * .8), Math.round(y + 4 - (t * 30 % 12)), 3, 3); }
+          g.font = '12px PX, monospace'; g.textAlign = 'center'; g.fillStyle = over ? '#eafff0' : 'rgba(180,230,195,.8)';
+          let nm = b.budName; while (g.measureText(nm).width > sl.sw - 8 && nm.length > 3) nm = nm.slice(0, -1); g.fillText(nm === b.budName ? nm : nm + '…', sl.x, sl.y + 24);
+        });
+        // the watering can makes its rounds
+        const live2 = slots.filter(s => s.b);
+        if (live2.length) {
+          if (can.i < 0 || now - can.t0 > 5200) { can.i = Math.floor(Math.random() * live2.length); can.t0 = now; }
+          const tg = live2[can.i % live2.length], k = Math.min(1, (now - can.t0) / 900), cx = Math.round((can.x ?? tg.x) + (tg.x + 18 - (can.x ?? tg.x)) * k), cy = Math.round(tg.y - 40 * tg.s - 52);
+          if (k >= 1) can.x = tg.x + 18;
+          g.fillStyle = '#5b6b63'; g.fillRect(cx, cy, 16, 11); g.fillStyle = '#7f908a'; g.fillRect(cx + 2, cy + 2, 12, 2); g.fillRect(cx - 9, cy + 2, 9, 3); g.fillRect(cx + 16, cy - 3, 3, 9); g.fillStyle = '#3b4a42'; g.fillRect(cx + 3, cy - 5, 9, 2);
+          const pour = now - can.t0 > 1000 && now - can.t0 < 3400;
+          if (pour) { g.fillStyle = 'rgba(127,227,196,.85)'; for (let k2 = 0; k2 < 5; k2++) { const dy = ((now / 6 + k2 * 13) % 46); g.fillRect(cx - 10 + (k2 % 2) * 3, cy + 6 + dy, 2, 4); } }
         }
+        // spores drifting in the light
+        for (const p of spores) { p.y -= p.v * .016; p.x += Math.sin(t / 2 + p.p) * .0004; if (p.y < 0) { p.y = 1; p.x = Math.random(); } g.fillStyle = 'rgba(170,255,200,.35)'; g.fillRect(Math.round(p.x * W), Math.round(p.y * H), 2, 2); }
         cv.style.cursor = hover ? 'pointer' : 'default';
-        if (hover) { tip.hidden = false; const b = hover.b; tip.innerHTML = `<b>${esc(b.budName)}</b> <span class="lvl ${esc(b.level)}">${esc(b.level)}</span><br><span class="ok">$${esc(b.symbol)}</span> · claimed <b class="am">${fsol(b.claimed)} SOL</b><br><small class="dim">${esc(b.last || 'waiting for fees')}</small>`;
-          tip.style.left = Math.min(W - 230, Math.max(4, hover.x - 110)) + 'px'; tip.style.top = Math.max(4, hover.y - 44 * hover.s - 96) + 'px'; } else tip.hidden = true;
+        if (hover && hover.b) { tip.hidden = false; const b = hover.b; tip.innerHTML = `<b>${esc(b.budName)}</b> <span class="lvl ${esc(b.level)}">${esc(b.level)}</span><br><span class="ok">$${esc(b.symbol)}</span> · worked <b class="am">${fsol(b.claimed)} SOL</b><br><small class="dim">${esc(b.last || 'waiting for fees')}</small>`;
+          tip.style.left = Math.min(W - 230, Math.max(4, hover.x - 110)) + 'px'; tip.style.top = Math.max(36, hover.y - 40 * hover.s - 104) + 'px'; }
+        else tip.hidden = true;
       }
       cv.addEventListener('pointermove', e => { const r = cv.getBoundingClientRect(); mx = e.clientX - r.left; my = e.clientY - r.top; });
       cv.addEventListener('pointerleave', () => { mx = my = -1; });
-      cv.addEventListener('click', () => { if (hover) X.openBud(hover.b.mint); });
-      X.on('buds', layout); new ResizeObserver(layout).observe(el); layout(); raf = requestAnimationFrame(draw);
+      cv.addEventListener('click', () => { if (hover) hover.b ? X.openBud(hover.b.mint) : X.open('launch'); });
+      X.on('buds', layout); new ResizeObserver(layout).observe(wrap); layout(); requestAnimationFrame(draw);
     },
   };
 
   // ================================================================ bagwork.exe: catch the bags, dodge the red candles
   A.bagwork = {
-    title: 'bagwork.exe', short: 'bagwork.exe', icon: 'bagwork', w: 460, h: 470, nomax: true, noresize: true,
+    title: 'catch.exe — catch the bags', short: 'catch.exe', icon: 'bagwork', w: 460, h: 470, nomax: true, noresize: true,
     build(el) {
       el.innerHTML = `<div class="game"><div class="g-hud"><span>score <b class="g-s">0</b></span><span>best <b class="g-b">0</b></span><span class="g-l"></span></div><canvas width="420" height="360"></canvas><p class="hint">← → or drag to move. coins +1, bags +5. red candles cost a life.</p></div>`;
       const cv = $('canvas', el), g = cv.getContext('2d'), W = 420, H = 360;
@@ -97,7 +134,7 @@ export function installMore(X) {
         fx = fx.filter(f => now - f.t < 600); for (const f of fx) { g.fillStyle = `rgba(242,193,78,${1 - (now - f.t) / 600})`; g.font = '16px PX, monospace'; g.textAlign = 'center'; g.fillText('+' + f.p, f.x, f.y - (now - f.t) / 20); }
         if (st !== 'play') {
           g.fillStyle = 'rgba(2,8,4,.72)'; g.fillRect(0, 0, W, H); g.textAlign = 'center'; g.fillStyle = '#5cf08a'; g.font = '30px PX, monospace';
-          g.fillText(st === 'title' ? 'bagwork.exe' : 'the bag dropped.', W / 2, H / 2 - 30);
+          g.fillText(st === 'title' ? 'catch.exe' : 'the bag dropped.', W / 2, H / 2 - 30);
           g.font = '15px PX, monospace'; g.fillStyle = '#c6ffd6'; g.fillText(st === 'title' ? 'catch the bags. dodge the red candles.' : `score ${score} · best ${best}`, W / 2, H / 2 + 2);
           g.fillStyle = '#7fa98b'; g.fillText((now / 500 | 0) % 2 ? 'press space or tap to start' : '', W / 2, H / 2 + 34);
         }

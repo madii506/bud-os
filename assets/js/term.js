@@ -131,9 +131,9 @@ export function installTerm(X) {
     print('<span class="dim">each pass   </span>claim fees → split by the locked mix → buy back + burn, drop SOL to the top holders, pay the dev');
     print('<span class="dim">custody     </span>each bud is a wallet held by this engine. it can claim, buy, burn and send to holders and the dev. it cannot sell.');
   }, 'system');
-  add('open run', 'open a window: open ledger', a => { const m = { terminal: 'term', term: 'term', launch: 'launch', buds: 'buds', ledger: 'ledger', greenhouse: 'greenhouse', readme: 'readme', bagwork: 'bagwork', game: 'bagwork', paint: 'paint', display: 'display', bin: 'bin' }[a[0]]; if (!m) return say('open what? launch, buds, ledger, greenhouse, readme, bagwork, paint, display', 'dim'); X.open(m); }, 'system');
+  add('open run', 'open a window: open ledger', a => { const m = { terminal: 'term', term: 'term', launch: 'launch', buds: 'buds', ledger: 'ledger', greenhouse: 'greenhouse', readme: 'readme', bagwork: 'pipe', 'bagwork.sys': 'pipe', pipe: 'pipe', stats: 'stats', 'stats.exe': 'stats', dash: 'stats', catch: 'bagwork', 'catch.exe': 'bagwork', game: 'bagwork', paint: 'paint', display: 'display', bin: 'bin' }[a[0]]; if (!m) return say('open what? launch, buds, bagwork, stats, ledger, greenhouse, readme, catch, paint, display', 'dim'); X.open(m); }, 'system');
   C.open.args = '<app>';
-  add('ls dir', 'list files', () => print(['readme.txt', 'launch.exe', 'bagwork.exe', 'paint.exe', 'ledger.db', '<span class="mute">sleep.exe (deleted)</span>'].map(f => `<span class="ok">${f}</span>`).join('   ')), 'system');
+  add('ls dir', 'list files', () => print(['readme.txt', 'launch.exe', 'bagwork.sys', 'stats.exe', 'catch.exe', 'paint.exe', 'ledger.db', '<span class="mute">sleep.exe (deleted)</span>'].map(f => `<span class="ok">${f}</span>`).join('   ')), 'system');
   add('cat type', 'print a file', a => {
     if (!a[0]) return say('cat what?', 'dim');
     if (/readme/.test(a[0])) { ['every coin gets a bud.', 'the bud is the coin’s creator wallet. every minute it claims the creator fees and does the bagwork:', '  burn: buys the coin back and burns it', '  drop: sends SOL to the top 20 holders', '  dev:  pays the launcher', 'the launcher picks the mix once. it is locked forever.', 'open readme.txt for the long version.'].forEach(l => say(l)); return; }
@@ -165,7 +165,9 @@ export function installTerm(X) {
   add('rug', null, () => say('not on my watch.', 'warn'), 'fun');
   add('gm', null, () => say('gm. i didn’t sleep.', 'ok'), 'fun');
   add('wen', null, () => say('bagwork first.', 'ok'), 'fun');
-  add('bagwork', 'play bagwork.exe', () => X.open('bagwork'), 'fun');
+  add('bagwork', 'watch the jobs run, live (bagwork.sys)', () => X.open('pipe'), 'buds');
+  add('dash dashboard', 'open stats.exe', () => X.open('stats'), 'buds');
+  add('catch game', 'play catch.exe', () => X.open('bagwork'), 'fun');
 
   // ---------------------------------------------------------------- input
   async function run(raw) {

@@ -1,12 +1,12 @@
 // bud sound: an original night track written in code with the Web Audio API, plus the greenhouse's small noises.
 // Nothing is downloaded. Browsers only allow sound after a click or a key, so it starts on the first one.
-const PROG = [                                            // Am(add9) · Fmaj7 · Dm9 · E7, two bars each, 66 bpm
-  { bass: 33, pad: [45, 52, 57, 59, 60, 64], arp: [64, 67, 69, 71, 72, 76] },
-  { bass: 29, pad: [41, 48, 53, 57, 64], arp: [64, 65, 69, 72, 76, 77] },
-  { bass: 26, pad: [38, 50, 53, 57, 60, 64], arp: [62, 65, 69, 72, 74, 76] },
-  { bass: 28, pad: [40, 52, 56, 59, 62], arp: [64, 68, 71, 74, 76, 80] },
+const PROG = [                                            // Fmaj9 · Em7 · Dm9 · Cmaj9, two bars each at 56 bpm: a slow walk down
+  { bass: 41, pad: [53, 57, 60, 64, 67], keys: [65, 69, 72, 76, 79, 81] },
+  { bass: 40, pad: [52, 55, 59, 62, 67], keys: [64, 67, 71, 74, 76, 79] },
+  { bass: 38, pad: [50, 53, 57, 60, 64], keys: [62, 65, 69, 72, 74, 77] },
+  { bass: 36, pad: [48, 55, 59, 62, 64], keys: [60, 64, 67, 71, 72, 76] },
 ];
-const BPM = 66, BEAT = 60 / BPM, BAR = BEAT * 4;
+const BPM = 56, BEAT = 60 / BPM, BAR = BEAT * 4;
 const hz = m => 440 * Math.pow(2, (m - 69) / 12);
 
 export function createSound(store) {
@@ -32,51 +32,59 @@ export function createSound(store) {
     master = ctx.createGain(); master.gain.value = muted ? 0 : vol;
     const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -18; comp.ratio.value = 3; master.connect(comp).connect(ctx.destination);
     analyser = ctx.createAnalyser(); analyser.fftSize = 256; analyser.smoothingTimeConstant = .78; comp.connect(analyser);   // the cd player's visualizer listens here
-    verb = ctx.createConvolver(); verb.buffer = impulse(2.2, 3.2); const vg = ctx.createGain(); vg.gain.value = .14; verb.connect(vg).connect(master);
-    echo = ctx.createDelay(1.5); echo.delayTime.value = BEAT * .75; const fb = ctx.createGain(); fb.gain.value = .18; const eg = ctx.createGain(); eg.gain.value = .16;
-    echo.connect(fb).connect(echo); echo.connect(eg).connect(master);
+    verb = ctx.createConvolver(); verb.buffer = impulse(3.4, 2.6); const vg = ctx.createGain(); vg.gain.value = .2; verb.connect(vg).connect(master);
+    echo = ctx.createDelay(1.5); echo.delayTime.value = BEAT * .75; const fb = ctx.createGain(); fb.gain.value = .26; const eg = ctx.createGain(); eg.gain.value = .14; const ef = ctx.createBiquadFilter(); ef.type = 'lowpass'; ef.frequency.value = 1800; echo.connect(ef);
+    ef.connect(fb).connect(echo); ef.connect(eg).connect(master);
     musicBus = ctx.createGain(); musicBus.gain.value = 0; musicBus.connect(master); musicBus.connect(verb);
     sfxBus = ctx.createGain(); sfxBus.gain.value = .9; sfxBus.connect(master); sfxBus.connect(verb);
     noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate); const nd = noiseBuf.getChannelData(0); for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
     return true;
   }
-  // ---------------------------------------------------------------- instruments
+  // ---------------------------------------------------------------- instruments: a soft pad, a felt electric piano, a round bass. no drums.
   const env = (g, t, a, peak, d, sus, r, end) => { g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(peak, t + a); g.gain.setTargetAtTime(sus, t + a, d); g.gain.setTargetAtTime(0, end, r); };
   function pad(notes, t, len, level) {
-    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1500; lp.Q.value = .3;
-    const g = ctx.createGain(); env(g, t, 1.6, level, 1.5, level * .85, .9, t + len); lp.connect(g).connect(musicBus);
-    notes.forEach(m => [-3, 3].forEach(cents => { const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = hz(m); o.detune.value = cents; const og = ctx.createGain(); og.gain.value = .16; o.connect(og).connect(lp); o.start(t); o.stop(t + len + 4); }));
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 950; lp.Q.value = .4;
+    const lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = .07; lg.gain.value = 260; lfo.connect(lg).connect(lp.frequency); lfo.start(t); lfo.stop(t + len + 6);
+    const g = ctx.createGain(); env(g, t, 2.8, level, 2.5, level * .8, 1.6, t + len); lp.connect(g).connect(musicBus);
+    notes.forEach((m, i) => [-5, 5].forEach(cents => { const o = ctx.createOscillator(); o.type = i === 0 ? 'sine' : 'triangle'; o.frequency.value = hz(m); o.detune.value = cents; const og = ctx.createGain(); og.gain.value = .13; o.connect(og).connect(lp); o.start(t); o.stop(t + len + 6); }));
   }
-  function pluck(m, t, level) {
-    const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(level, t + .006); g.gain.exponentialRampToValueAtTime(.0005, t + 1.6);
-    const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = hz(m);
-    const o2 = ctx.createOscillator(); o2.type = 'triangle'; o2.frequency.value = hz(m) * 2; const g2 = ctx.createGain(); g2.gain.value = .18;
-    o.connect(g); o2.connect(g2).connect(g); g.connect(musicBus); g.connect(echo);
-    o.start(t); o2.start(t); o.stop(t + 1.7); o2.stop(t + 1.7);
+  function keys(m, t, v, len = 3.4) {                       // two sines and a tine: warm, round, a little bell on top
+    const f = hz(m), lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2400; lp.Q.value = .2;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + .012); g.gain.exponentialRampToValueAtTime(v * .35, t + .9); g.gain.exponentialRampToValueAtTime(.0001, t + len);
+    const car = ctx.createOscillator(); car.type = 'sine'; car.frequency.value = f;
+    const mod = ctx.createOscillator(); mod.type = 'sine'; mod.frequency.value = f; const mg = ctx.createGain(); mg.gain.setValueAtTime(f * .9, t); mg.gain.exponentialRampToValueAtTime(f * .03, t + 1.1); mod.connect(mg).connect(car.frequency);
+    const tine = ctx.createOscillator(); tine.type = 'sine'; tine.frequency.value = f * 4.01; const tg = ctx.createGain(); tg.gain.setValueAtTime(v * .09, t); tg.gain.exponentialRampToValueAtTime(.00005, t + .45);
+    car.connect(g).connect(lp); tine.connect(tg).connect(lp); lp.connect(musicBus); lp.connect(echo);
+    [car, mod, tine].forEach(o => { o.start(t); o.stop(t + len + .1); });
   }
   function bass(m, t, len, level) {
-    const g = ctx.createGain(); env(g, t, .06, level, .5, level * .6, .25, t + len - .1);
-    const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = hz(m); o.connect(g).connect(musicBus); o.start(t); o.stop(t + len + 1);
+    const g = ctx.createGain(); env(g, t, .35, level, 1.2, level * .7, .6, t + len - .2);
+    const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = hz(m); const o2 = ctx.createOscillator(); o2.type = 'triangle'; o2.frequency.value = hz(m) * 2; const g2 = ctx.createGain(); g2.gain.value = .12;
+    o.connect(g); o2.connect(g2).connect(g); g.connect(musicBus); o.start(t); o2.start(t); o.stop(t + len + 2); o2.stop(t + len + 2);
   }
   function noise(t, dur, type, freq, q, level, bus = musicBus) {
     const s = ctx.createBufferSource(); s.buffer = noiseBuf; s.loop = true; s.loopStart = rnd(); const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
     const g = ctx.createGain(); g.gain.setValueAtTime(level, t); g.gain.exponentialRampToValueAtTime(.0004, t + dur);
     s.connect(f).connect(g).connect(bus); s.start(t, rnd() * 1.5); s.stop(t + dur + .05); return g;
   }
-  function kick(t, level) { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.setValueAtTime(118, t); o.frequency.exponentialRampToValueAtTime(42, t + .22); g.gain.setValueAtTime(level, t); g.gain.exponentialRampToValueAtTime(.0006, t + .38); o.connect(g).connect(musicBus); o.start(t); o.stop(t + .4); }
-  // ---------------------------------------------------------------- the sequencer: sixteenth steps, scheduled a little ahead
+  // ---------------------------------------------------------------- the sequencer: eighth notes, scheduled a little ahead. the melody walks, it never jumps.
+  let walk = 2;
   function schedule() {
-    const ahead = ctx.currentTime + .25;
+    const ahead = ctx.currentTime + .3;
     while (nextT < ahead) {
-      const t = nextT, s16 = step % 16, bar = Math.floor(step / 16), ch = PROG[Math.floor(bar / 2) % 4], desk = scene === 'desk';
-      if (step % 32 === 0) pad(ch.pad, t, BAR * 2, desk ? .05 : .06);
-      if (desk && s16 === 0) bass(ch.bass, t, BAR, .16);
-      if (desk && s16 === 8 && rnd() < .5) bass(ch.bass + 12, t, BEAT * 1.5, .08);
-      if (s16 % 2 === 0) { const p = desk ? .34 : .2; if (rnd() < p) pluck(ch.arp[Math.floor(rnd() * ch.arp.length)], t + (rnd() - .5) * .02, desk ? .05 : .045); }
-      if (desk) {
-        if (s16 === 0 || (s16 === 10 && rnd() < .55)) kick(t, .2);
+      const t = nextT, s8 = step % 16, ch = PROG[Math.floor(step / 16) % 4], desk = scene === 'desk';
+      if (s8 === 0) {
+        pad(ch.pad, t, BAR * 2 + .4, desk ? .045 : .055);
+        bass(ch.bass, t, BAR * 2, desk ? .12 : .08);
+        if (rnd() < (desk ? .7 : .45)) [0, 2, 4].forEach((k, i) => keys(ch.keys[k], t + i * BEAT * .5 + rnd() * .02, (desk ? .05 : .04) - i * .006, 4));
+      } else if (s8 % 2 === 0 && s8 > 3) {
+        if (rnd() < (desk ? .34 : .2)) {
+          walk = Math.max(0, Math.min(ch.keys.length - 1, walk + [-2, -1, -1, 1, 1, 2][Math.floor(rnd() * 6)]));
+          keys(ch.keys[walk] + (rnd() < .2 ? 12 : 0), t + (rnd() - .5) * .03, (desk ? .045 : .035) * (.75 + rnd() * .4));
+          if (rnd() < .2) keys(ch.keys[Math.max(0, walk - 1)], t + BEAT * .5, (desk ? .03 : .025));
+        }
       }
-      nextT += BEAT / 4; step++;
+      nextT += BEAT / 2; step++;
     }
   }
   function startRain() {
@@ -92,7 +100,7 @@ export function createSound(store) {
   function startMusic() {
     if (timer) return;
     nextT = ctx.currentTime + .15; step = 0;
-    musicBus.gain.cancelScheduledValues(ctx.currentTime); musicBus.gain.setValueAtTime(musicBus.gain.value, ctx.currentTime); musicBus.gain.linearRampToValueAtTime(scene === 'desk' ? .44 : .55, ctx.currentTime + 3);
+    musicBus.gain.cancelScheduledValues(ctx.currentTime); musicBus.gain.setValueAtTime(musicBus.gain.value, ctx.currentTime); musicBus.gain.linearRampToValueAtTime(scene === 'desk' ? .62 : .7, ctx.currentTime + 6);
     timer = setInterval(schedule, 60); schedule();
   }
   // ---------------------------------------------------------------- the room's noises
@@ -120,6 +128,14 @@ export function createSound(store) {
     close: t => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'triangle'; o.frequency.setValueAtTime(560, t); o.frequency.exponentialRampToValueAtTime(380, t + .07); g.gain.setValueAtTime(.03, t); g.gain.exponentialRampToValueAtTime(.0005, t + .12); o.connect(g).connect(sfxBus); o.start(t); o.stop(t + .14); },
     ding: t => { [76, 71].forEach((m, i) => { const at = t + i * .14, o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.value = hz(m); g.gain.setValueAtTime(.06, at); g.gain.exponentialRampToValueAtTime(.0005, at + .9); o.connect(g).connect(sfxBus); o.start(at); o.stop(at + 1); }); },
     tick: t => { noise(t, .02, 'highpass', 4000, .7, .05, sfxBus); },
+    crton: t => { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.setValueAtTime(72, t); o.frequency.exponentialRampToValueAtTime(40, t + .5); g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.2, t + .03); g.gain.exponentialRampToValueAtTime(.0005, t + .7); o.connect(g).connect(sfxBus); o.start(t); o.stop(t + .75);
+      const h = ctx.createOscillator(), hg = ctx.createGain(), hf = ctx.createBiquadFilter(); h.type = 'sawtooth'; h.frequency.value = 60; hf.type = 'lowpass'; hf.frequency.value = 420; hg.gain.setValueAtTime(.04, t + .02); hg.gain.exponentialRampToValueAtTime(.0005, t + 1.3); h.connect(hf).connect(hg).connect(sfxBus); h.start(t); h.stop(t + 1.35);
+      noise(t + .04, .4, 'highpass', 2800, .5, .035, sfxBus);
+      const w = ctx.createOscillator(), wg = ctx.createGain(); w.type = 'sine'; w.frequency.value = 7600; wg.gain.setValueAtTime(.0001, t); wg.gain.exponentialRampToValueAtTime(.004, t + .3); wg.gain.exponentialRampToValueAtTime(.0001, t + 1.8); w.connect(wg).connect(sfxBus); w.start(t); w.stop(t + 1.9); },
+    crtoff: t => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(900, t); o.frequency.exponentialRampToValueAtTime(60, t + .35); g.gain.setValueAtTime(.05, t); g.gain.exponentialRampToValueAtTime(.0005, t + .4); o.connect(g).connect(sfxBus); o.start(t); o.stop(t + .45); noise(t, .2, 'bandpass', 1200, .8, .04, sfxBus); },
+    min: t => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'triangle'; o.frequency.setValueAtTime(720, t); o.frequency.exponentialRampToValueAtTime(300, t + .14); g.gain.setValueAtTime(.025, t); g.gain.exponentialRampToValueAtTime(.0005, t + .16); o.connect(g).connect(sfxBus); o.start(t); o.stop(t + .18); },
+    pop: t => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(420, t); o.frequency.exponentialRampToValueAtTime(980, t + .07); g.gain.setValueAtTime(.04, t); g.gain.exponentialRampToValueAtTime(.0005, t + .12); o.connect(g).connect(sfxBus); o.start(t); o.stop(t + .14); },
+    born: t => { [60, 64, 67, 72, 76, 79, 84].forEach((m, i) => { const at = t + i * .07, o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'triangle'; o.frequency.value = hz(m); g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(.045, at + .01); g.gain.exponentialRampToValueAtTime(.0005, at + 1.4); o.connect(g).connect(sfxBus); o.start(at); o.stop(at + 1.5); }); },
     boom: t => { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.setValueAtTime(160, t); o.frequency.exponentialRampToValueAtTime(40, t + .5); g.gain.setValueAtTime(.25, t); g.gain.exponentialRampToValueAtTime(.001, t + .6); o.connect(g).connect(sfxBus); o.start(t); o.stop(t + .65); },
   };
   let lastSfx = {};
@@ -130,7 +146,7 @@ export function createSound(store) {
     scene(name) {
       scene = name; if (!ctx) return;
       const t = ctx.currentTime;
-      musicBus.gain.cancelScheduledValues(t); musicBus.gain.setValueAtTime(musicBus.gain.value, t); musicBus.gain.linearRampToValueAtTime(name === 'desk' ? .44 : .55, t + 2.5);
+      musicBus.gain.cancelScheduledValues(t); musicBus.gain.setValueAtTime(musicBus.gain.value, t); musicBus.gain.linearRampToValueAtTime(name === 'desk' ? .62 : .7, t + 3);
       if (rain) rain.g.gain.setTargetAtTime(name === 'intro' ? .07 : .016, t, 1.6);
     },
     sfx(name, arg) {

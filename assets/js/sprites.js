@@ -39,6 +39,8 @@ const DEF = {
   welcome: P => { DEF.buds(P); },
   chat: P => { P.rect(2, 3, 12, 8, 'c'); P.rect(4, 11, 2, 2, 'c'); P.h(4, 11, 5, 'C'); P.h(4, 9, 7, 'C'); P.h(4, 10, 9, 'C'); },
   folder: P => { P.rect(2, 4, 5, 2, 'A'); P.rect(2, 5, 12, 9, 'a'); P.h(2, 13, 6, 'A'); },
+  stats: P => { P.rect(1, 2, 14, 12, 'b'); P.rect(2, 3, 12, 10, 'B'); P.rect(3, 9, 2, 3, 'm'); P.rect(6, 7, 2, 5, 'g'); P.rect(9, 5, 2, 7, 'a'); P.rect(12, 8, 1, 4, 'r'); P.h(3, 12, 12, 'C'); P.px(4, 7, 'l'); P.px(7, 5, 'l'); P.px(10, 3, 'l'); },
+  pipe: P => { P.rect(0, 7, 3, 3, 'a'); P.px(1, 8, 'A'); P.h(3, 4, 8, 'G'); P.rect(5, 4, 5, 8, 'g'); P.px(5, 4, 'G'); P.px(9, 4, 'G'); P.px(6, 6, 'w'); P.px(8, 6, 'w'); P.h(6, 8, 9, 'G'); P.v(7, 2, 3, 'G'); P.v(11, 2, 13, 'b'); P.h(10, 10, 8, 'b'); P.h(12, 14, 2, 'r'); P.h(12, 14, 8, 'm'); P.h(12, 14, 13, 'a'); },
 };
 for (const k in DEF) ICONS[k] = icon(DEF[k]);
 

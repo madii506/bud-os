@@ -6,7 +6,7 @@ import { EffectComposer } from './vendor/EffectComposer.js';
 import { RenderPass } from './vendor/RenderPass.js';
 import { UnrealBloomPass } from './vendor/UnrealBloomPass.js';
 import { OutputPass } from './vendor/OutputPass.js';
-import { build, V } from './greenhouse.js?v=1';
+import { build, V } from './greenhouse.js?v=2';
 
 const clamp01 = k => Math.max(0, Math.min(1, k));
 const ease = k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
@@ -42,7 +42,7 @@ class Terminal {
     this.b = document.createElement('canvas'); this.b.width = this.W; this.b.height = this.H; this.bg = this.b.getContext('2d');
     this.t = new THREE.CanvasTexture(this.c); this.t.colorSpace = THREE.SRGBColorSpace; this.t.anisotropy = 4;
     this.lines = []; this.input = ''; this.prompt = false; this.logo = 0; this.power = 0; this.dirty = true; this.blink = true;
-    this.LH = 38; this.X = 58; this.Y = 48; this.max = 18; this.mode = 'term'; this.tunnel = 0; this.wobble = 0; this.flick = 0; this.glitch = 0; this.off = true; this.peek = null;
+    this.LH = 38; this.X = 58; this.Y = 48; this.max = 18; this.shut = 0; this.mode = 'term'; this.tunnel = 0; this.wobble = 0; this.flick = 0; this.glitch = 0; this.off = true; this.peek = null;
   }
   push(runs) { this.lines.push(runs); while (this.lines.length > this.max) this.lines.shift(); this.dirty = true; return this.lines.length - 1; }
   set(i, runs) { this.lines[i] = runs; this.dirty = true; }
@@ -63,7 +63,7 @@ class Terminal {
     }
     const r = g.createRadialGradient(W / 2, H / 2, 60, W / 2, H / 2, W * .7); r.addColorStop(0, '#0b2a17'); r.addColorStop(1, '#020a05');
     g.fillStyle = r; g.fillRect(0, 0, W, H);
-    if (this.mode === 'tunnel') this.drawTunnel(g); else this.drawText(g, blink, now);
+    if (this.mode === 'eyes') this.drawFace(g); else if (this.mode === 'tunnel') this.drawTunnel(g); else this.drawText(g, blink, now);
     this.glass(g);
     this.compose(dt);
   }
@@ -97,6 +97,14 @@ class Terminal {
       const x = run([['C:\\BUD> ', C.ok], [this.input, C.white]], this.X, y);
       if (blink) { g.fillStyle = C.ink; g.fillRect(x + 2, y + 6, 15, this.LH - 8); }
     }
+  }
+  drawFace(g) {
+    const W = this.W, H = this.H, s = 22, sw = 32 * s; g.fillStyle = '#010402'; g.fillRect(0, 0, W, H);
+    if (!this.sprite) return; g.imageSmoothingEnabled = false;
+    const x = (W - 22 * s) / 2, y = (H - sw) / 2 + 40;
+    g.globalAlpha = .9; g.drawImage(this.sprite.body, x, y, sw, sw); g.globalAlpha = 1;
+    if (this.shut < 1) { g.save(); g.shadowColor = '#d9ffe6'; g.shadowBlur = 50; g.translate(0, y + 16 * s); g.scale(1, 1 - this.shut); g.drawImage(this.sprite.eyes, x + Math.round(this.eyeX || 0) * s, -16 * s, sw, sw); g.restore(); }
+    this.dirty = true;
   }
   drawTunnel(g) {                                          // the bagwork pipeline rushing past on the way in
     const W = this.W, H = this.H, k = this.tunnel;
@@ -150,7 +158,7 @@ function shots(portrait) {
     [V(-.1, 1.55, 2.6), V(1.0, 1.05, -1.4)], [V(0, 1.55, -.8), V(0, 1.3, -5.6)], [V(.03, 1.5, -3.2), V(0, 1.2, -5.72)]];
   return { pos: new THREE.CatmullRomCurve3(L.map(a => a[0]), false, 'centripetal'), look: new THREE.CatmullRomCurve3(L.map(a => a[1]), false, 'centripetal'), end: L[L.length - 1] };
 }
-const SHOT_T = 13.6;
+const SHOT_T = 24;
 const FOV = p => p ? [62, 50] : [44, 33];
 
 // ---------------------------------------------------------------- run
@@ -198,18 +206,19 @@ export async function run({ canvas, onEnter, onReady, mobile, status, audio }) {
   const Q = []; let qi = 0;
   const ev = (ms, fn, soft) => Q.push({ ms, fn, soft });
   function flush() { const t = NOW - st.t0; while (qi < Q.length && (st.skip || Q[qi].ms <= t)) { const e = Q[qi++]; if (!(st.skip && e.soft)) e.fn(); } }
-  ev(300, () => sfx('creak'), true);
-  ev(1300, () => lightning(1), true);
-  order.forEach((b, i) => ev(2100 + Math.floor(i / 2) * 650 + (i % 2) * 90, () => { b.t0 = NOW; b.want = 1; if (i % 2 === 0) sfx('clunk', .7 + Math.random() * .3); }));
-  ev(5400, () => lightning(.45), true);
-  ev(10500, () => { sfx('power'); st.crtOn = true; P.ledMat.color.setHex(0x3dff8a); P.monLed.color.setHex(0xffb648); term.off = false; term.power = 0; term.dirty = true; st.lampT = NOW; });
-  for (let i = 1; i <= 20; i++) ev(10500 + i * 23, () => { term.power = i / 20; term.dirty = true; });
-  ev(10500 + 21 * 23, () => { term.power = 1; term.wobble = st.skip ? 0 : 1; term.dirty = true; });
-  let T = 11480; const at = (d, fn) => { T += d; ev(T, fn); };
+  ev(500, () => sfx('creak'), true);
+  ev(1600, () => lightning(1), true);
+  order.forEach((b, i) => ev(2600 + Math.floor(i / 2) * 1500 + (i % 2) * 130, () => { b.t0 = NOW; b.want = 1; if (i % 2 === 0) sfx('clunk', .7 + Math.random() * .3); }));
+  ev(9000, () => lightning(.45), true);
+  ev(15500, () => lightning(.3), true);
+  ev(18600, () => { sfx('power'); st.crtOn = true; P.ledMat.color.setHex(0x3dff8a); P.monLed.color.setHex(0xffb648); term.off = false; term.power = 0; term.dirty = true; st.lampT = NOW; });
+  for (let i = 1; i <= 20; i++) ev(18600 + i * 23, () => { term.power = i / 20; term.dirty = true; });
+  ev(18600 + 21 * 23, () => { term.power = 1; term.wobble = st.skip ? 0 : 1; term.dirty = true; });
+  let T = 19500; const at = (d, fn) => { T += d; ev(T, fn); };
   at(0, () => { hdd(true); sfx('beep'); say([['BUD LABS BIOS v2.0  ', C.ink], ['(c) the night shift', C.dim]]); });
   at(170, () => say([['cpu: ', C.dim], ['photosynthetic @ 33 MHz', C.ink]]));
   let mi; at(130, () => { mi = term.push([['memory test: ', C.dim], ['0K', C.ok]]); });
-  for (let m = 4096; m <= 65536; m += 4096) at(24, () => term.set(mi, [['memory test: ', C.dim], [m + 'K' + (m === 65536 ? ' ok' : ''), C.ok]]));
+  for (let m = 8192; m <= 65536; m += 8192) at(26, () => term.set(mi, [['memory test: ', C.dim], [m + 'K' + (m === 65536 ? ' ok' : ''), C.ok]]));
   at(60, () => { say(['', C.ink]); hdd(false); });
   for (const [a, b, col] of [['detecting grow lights', 'on', C.ok], ['detecting seed trays', 'wet', C.ok], ['detecting buds', 'awake', C.ok], ['detecting sleep', 'not found', C.red]]) {
     const dots = '.'.repeat(Math.max(3, 30 - a.length)) + ' '; let i;
@@ -217,18 +226,18 @@ export async function run({ canvas, onEnter, onReady, mobile, status, audio }) {
     at(190, () => { term.set(i, [[a + ' ', C.ink], [dots, C.dim], [b, col]]); hdd(false); });
   }
   at(120, () => { say(['', C.ink]); say([['press ', C.dim], ['DEL', C.ink], [' for setup. the buds would rather you didn\'t.', C.dim]]); });
-  at(600, () => term.clear());
+  at(450, () => term.clear());
   at(200, () => say([['waking the buds …', C.ink]]));
   at(380, () => { say(['', C.ink]); say([['C:\\> ', C.ok], ['run bagwork', C.white]]); });
   JOBS.forEach(([name, what], k) => {
     const label = ` 0${k + 1} ${name} `.padEnd(14, '.') + ' ', text = what.padEnd(30, ' '); let i;
-    at(240, () => { i = term.push([[label, C.ink], [text, C.dim], ['[    ]', C.dim]]); });
-    for (let s = 0; s < 5; s++) at(58, () => { term.set(i, [[label, C.ink], [text, C.dim], ['[ ' + '|/-\\'[s % 4] + '  ]', C.mag]]); hdd(s % 2 === 0); });
+    at(200, () => { i = term.push([[label, C.ink], [text, C.dim], ['[    ]', C.dim]]); });
+    for (let s = 0; s < 4; s++) at(52, () => { term.set(i, [[label, C.ink], [text, C.dim], ['[ ' + '|/-\\'[s % 4] + '  ]', C.mag]]); hdd(s % 2 === 0); });
     at(58, () => { term.set(i, [[label, C.ink], [text, C.dim], ['[ ', C.dim], ['ok', C.ok], [' ]', C.dim]]); hdd(false); });
     T -= 160;
   });
   at(240, () => { say(['', C.ink]); say([[' 6/6 jobs up.', C.ok], [' it never sleeps.', C.dim]]); });
-  at(700, () => { term.clear(); term.glitch = st.skip ? 0 : 1; });
+  at(600, () => { term.clear(); term.glitch = st.skip ? 0 : 1; });
   for (let k = 1; k <= 22; k++) at(k === 1 ? 160 : 22, () => { term.logo = Math.min(1, k / 22); term.dirty = true; });
   at(30, () => { term.logo = 1; term.glitch = st.skip ? 0 : .5; });
   let tag; at(40, () => { tag = term.push([['', C.ink]]); });
@@ -293,8 +302,12 @@ export async function run({ canvas, onEnter, onReady, mobile, status, audio }) {
     if (st.phase === 'dive' || st.done) return;
     if (st.phase !== 'ready') { st.pending = cmd; skip(); return; }
     st.freeze = null; st.phase = 'dive'; st.cmd = cmd; st.diveT = NOW; st.diveFrom = cam.position.clone(); st.diveLook = (st.look || S.end[1]).clone(); term.prompt = false;
-    say([['going in', C.ok], [' …', C.dim]]); hdd(true); sfx('dive'); canvas.style.cursor = 'default';
+    say([['lights out', C.ok], [' …', C.dim]]); hdd(true); canvas.style.cursor = 'default';
     intro.classList.add('diving');
+    const far = [...P.bars].sort((a, b) => b.g.position.distanceTo(cam.position) - a.g.position.distanceTo(cam.position));
+    far.forEach((b, k) => { b.t0 = NOW + 120 + k * 135; b.want = 0; setTimeout(() => sfx('clunk', .5), 120 + k * 135); });
+    P.crts.forEach((c, k) => c.offT = NOW + 300 + k * 160);
+    setTimeout(() => { term.mode = 'eyes'; term.dirty = true; sfx('beep'); }, 700);
   }
   function key(e) {
     if (st.done) return;
@@ -364,15 +377,16 @@ export async function run({ canvas, onEnter, onReady, mobile, status, audio }) {
     const settle = st.phase === 'film' && !st.skip ? clamp01((t - SHOT_T + 1.5) / 1.5) : 1;
     if (st.phase === 'ready') { const h = onScreen() || !!budUnder(); if (h !== st.hover) { st.hover = h; canvas.style.cursor = h ? 'pointer' : 'default'; } }
     st.lean += ((st.phase === 'ready' && st.hover && onScreen() ? 1 : 0) - st.lean) * .05;
-    pos.y += Math.abs(Math.sin(t * 4.2)) * .022 * walking - .011 * walking; pos.x += Math.sin(t * 2.1) * .012 * walking;
+    pos.y += Math.abs(Math.sin(t * 2.7)) * .018 * walking - .009 * walking; pos.x += Math.sin(t * 1.35) * .011 * walking;
     pos.x += Math.sin(t * .35) * .02 + st.mx * .06 * settle; pos.y += Math.sin(t * .5) * .01 - st.my * .03 * settle;
     if (st.lean > .001) { pos.lerp(P.SCREEN_C, st.lean * .14); look.lerp(P.SCREEN_C, st.lean * .3); }
     if (st.phase === 'dive') {
-      const d = clamp01((NOW - st.diveT) / 2000), e = easeIn(d);
-      pos = st.diveFrom.clone().lerp(V(P.SCREEN_C.x, P.SCREEN_C.y, P.SCREEN_C.z + .16), e); look = st.diveLook.clone().lerp(P.SCREEN_C, Math.min(1, e * 2));
-      if (NOW - st.diveT > 880) { term.mode = 'tunnel'; term.tunnel = clamp01((NOW - st.diveT - 880) / 1080); }
-      bloom.strength = .7 + e * 2.2; renderer.toneMappingExposure = 1.1 + e * 1.6;
-      if (d >= 1 && !st.done) { st.done = true; cleanup(); onEnter(st.cmd); return; }
+      const a = (NOW - st.diveT) / 1000, e = ease(clamp01(a / 3));
+      pos = st.diveFrom.clone().add(V(0, -.05 * e, .32 * e)); look = st.diveLook.clone().add(V(0, -.02 * e, 0));
+      st.dark = clamp01((a - 1.1) / 1.1);
+      renderer.toneMappingExposure = 1.1 * (1 - st.dark * .9); bloom.strength = .7 + st.dark * 1.4;
+      st.eyeBoost = 1 + st.dark * 2.5; st.shut = clamp01((a - 2.55) / .22);
+      if (a >= 3.05 && !st.done) { st.done = true; cleanup(); onEnter(st.cmd); return; }
     }
     st.look = look; cam.position.copy(pos); cam.lookAt(look);
     // what the buds watch: the camera while you walk, the mouse once you're at the desk
@@ -382,7 +396,7 @@ export async function run({ canvas, onEnter, onReady, mobile, status, audio }) {
     let lit = 0;
     for (const b of P.bars) {
       let L = b.want;
-      if (b.t0 != null) { const a = (NOW - b.t0) / 1000; if (b.want) L = a < .05 ? 1 : a < .13 ? 0 : a < .18 ? .8 : a < .3 ? .1 : a < .36 ? .9 : 1; else L = a < .08 ? .4 : 0; }
+      if (b.t0 != null) { const a = (NOW - b.t0) / 1000; if (a < 0) L = b.want ? 0 : 1; else if (b.want) L = a < .05 ? 1 : a < .13 ? 0 : a < .18 ? .8 : a < .3 ? .1 : a < .36 ? .9 : 1; else L = a < .06 ? .6 : a < .1 ? .1 : a < .14 ? .3 : 0; }
       if (b.flick && L > .5 && Math.random() < .035) L = .25 + Math.random() * .4;
       b.on += (L - b.on) * .5;
       if (b.spot) b.spot.intensity = b.on * (mobile ? 16 : 9.5);
@@ -395,7 +409,7 @@ export async function run({ canvas, onEnter, onReady, mobile, status, audio }) {
     if (st.phase === 'ready' && Math.random() < dt / 16) lightning(.35 + Math.random() * .35);
     P.bolt.intensity = fl * 5; P.sky.material.color.setScalar(.6 + fl * 1.4); P.hemi.intensity = .25 + fl * .6;
     // the desk lamp and the main CRT glow
-    if (st.lampT > 0) { const a = (NOW - st.lampT) / 1000; P.lamp.intensity = Math.min(1, a * 3) * (mobile ? .18 : 2.2); P.shadeM.emissiveIntensity = Math.min(1, a * 3) * .3; }
+    if (st.lampT > 0) { const a = clamp01((NOW - st.lampT) / 1000 * 3); P.lamp.intensity = a * (mobile ? .18 : 2.2); P.shadeM.emissiveIntensity = a * .3; }
     const screenLight = term.off ? 0 : term.power < 1 ? term.power * .6 : .35 + (term.mode === 'tunnel' ? term.tunnel * 3 : 0);
     P.glow.intensity += (screenLight + Math.sin(t * 13) * .02 - P.glow.intensity) * .2;
     if (st.crtOn) P.ledMat.color.setHex(Math.sin(t * 9) > .3 ? 0x3dff8a : 0x0f4a26);
@@ -408,7 +422,7 @@ export async function run({ canvas, onEnter, onReady, mobile, status, audio }) {
     P.spores.rotation.y = Math.sin(t * .05) * .05; P.spores.position.y = Math.sin(t * .23) * .05;
     // the bench CRTs wake as you pass; their buds keep their eyes on you
     for (const c of P.crts) {
-      const near = cam.position.z < c.m.position.z + 3.2 || st.phase !== 'film' || st.skip;
+      const near = (cam.position.z < c.m.position.z + 3.2 || st.phase !== 'film' || st.skip) && !(c.offT && NOW > c.offT);
       const was = c.on; c.on += ((near ? 1 : 0) - c.on) * .08;
       c.m.getWorldPosition(tmp2); tmp.copy(st.watch).sub(tmp2); c.m.worldToLocal(tmp.add(tmp2));
       const want = Math.max(-1, Math.min(1, tmp.x * 1.6)); c.eye += (want - c.eye) * .1;
@@ -416,6 +430,19 @@ export async function run({ canvas, onEnter, onReady, mobile, status, audio }) {
       c.glow.intensity = c.on * .55;
       if (was < .99 || (NOW - (c.drawn || 0)) > 90) { drawCrt(c, t); c.drawn = NOW; }
     }
+    // in the dark only the eyes stay, brighter and brighter, then they all close
+    const boost = st.eyeBoost || 1, shut = st.shut || 0;
+    P.tinyEyeM.color.setRGB(2.2 * boost, 2.8 * boost, 2.4 * boost); term.shut = shut;
+    if (st.phase === 'dive') { P.sporeM.opacity *= 1 - (st.dark || 0); P.lamp.intensity *= 1 - clamp01(((NOW - st.diveT) / 1000 - .9) / .3); P.shadeM.emissiveIntensity *= 1 - (st.dark || 0); P.jarGlow.intensity = .25 * (1 - (st.dark || 0)); P.chartGlow.intensity = .25 * (1 - (st.dark || 0)); P.hemi.intensity *= 1 - (st.dark || 0) * .9; P.moon.intensity = .35 * (1 - (st.dark || 0)); }
+    // tiny buds in the trays: they turn, a few at a time, once you are close
+    for (const g of P.tiny) {
+      const u3 = g.userData, dx = st.watch.x - g.position.x, dz = st.watch.z - g.position.z, d2 = dx * dx + dz * dz;
+      if (st.phase !== 'film' || st.skip || d2 < u3.wake * u3.wake) { let dy = Math.atan2(dx, dz) - g.rotation.y; while (dy > Math.PI) dy -= 2 * Math.PI; while (dy < -Math.PI) dy += 2 * Math.PI; g.rotation.y += dy * (st.phase === 'dive' ? .12 : u3.lag); }
+      if (NOW > u3.nb) { u3.nb = NOW + 2500 + Math.random() * 6000; u3.bl = NOW + 120; }
+      u3.blink = (u3.bl > NOW ? .1 : 1) * (1 - shut);
+    }
+    P.tinyUpdate(t);
+    if (st.phase !== 'dive' && cam.position.z < 2.6 && NOW - (st.chartAt || 0) > (mobile ? 200 : 90)) { st.chartAt = NOW; P.chartTick(t); }
     // the potted buds: they face the back wall until you get close, then turn, one after another, to watch
     for (const b of P.buds) {
       const u2 = b.userData; b.getWorldPosition(tmp2);
@@ -428,7 +455,7 @@ export async function run({ canvas, onEnter, onReady, mobile, status, audio }) {
       if (u2.shake && NOW - u2.shake < 600) { const a = (NOW - u2.shake) / 600; u2.head.rotation.z = Math.sin(a * 40) * .25 * (1 - a); u2.eyeM.color.setRGB(3, .5 + a * 2, .8 + a * 1.4); }
       else if (u2.shake) { u2.shake = 0; u2.head.rotation.z = 0; u2.eyeM.color.setRGB(2.2, 2.8, 2.4); }
       if (NOW > u2.blinkT * 1000 + (u2.nb || 0)) { u2.nb = (u2.nb || 0) + 2500 + Math.random() * 5000; u2.blinkUntil = NOW + 120; }
-      const bl = u2.blinkUntil > NOW ? .1 : 1; u2.eyes.forEach(e => e.scale.y = bl);
+      const bl = (u2.blinkUntil > NOW ? .1 : 1) * (1 - shut); u2.eyes.forEach(e => e.scale.y = Math.max(.001, bl)); if (!u2.shake) u2.eyeM.color.setRGB(2.2 * boost, 2.8 * boost, 2.4 * boost);
       if (u2.floaty) b.position.y = .1 + Math.sin(t * 1.3) * .012;
     }
     // the terminal's own bud watches the mouse too

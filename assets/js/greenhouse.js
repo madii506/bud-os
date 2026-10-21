@@ -249,6 +249,46 @@ export function build(scene, mobile) {
   [[-1.1, TOP, 5.4, 1], [1.1, TOP, 3.9, .9], [-1.1, TOP, 1.6, 1.05], [1.1, TOP, .2, 1], [-1.1, TOP, -2.2, .95], [1.1, TOP, -3.6, 1.1], [-2.6, 0, -4.9, 1.6], [2.5, 0, -5.0, 1.4], [-.82, 0, 7.7, 1.25]]
     .forEach(([x, y, z, s]) => potAt(x, y, z, s));
 
+  // tiny buds sitting in the trays among the sprouts: lots of them, three instanced draws in total. a third already watch the door;
+  // the rest face the back wall until you come close, then turn, one after another.
+  const tinyBody = new THREE.SphereGeometry(.12, 16, 12), tinyLeaf = leafGeo(.11, .05);
+  const tinySkin = std({ color: 0x172b1d, roughness: .5 }), tinyLeafM = std({ color: 0x3b8f52, roughness: .5, side: THREE.DoubleSide });
+  P.tinyEyeM = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 2.8, 2.4), toneMapped: false, side: THREE.DoubleSide });
+  const tEye = new THREE.Shape(); tEye.moveTo(-.016, .012); tEye.lineTo(.016, -.002); tEye.lineTo(.016, -.022); tEye.lineTo(-.016, -.022); tEye.lineTo(-.016, .012);
+  const tEyeG = new THREE.ShapeGeometry(tEye);
+  const TN = mobile ? 30 : 84;
+  const tB = new THREE.InstancedMesh(tinyBody, tinySkin, TN), tL = new THREE.InstancedMesh(tinyLeaf, tinyLeafM, TN * 2), tE = new THREE.InstancedMesh(tEyeG, P.tinyEyeM, TN * 2);
+  tB.castShadow = !mobile; [tB, tL, tE].forEach(m => { m.frustumCulled = false; scene.add(m); });
+  const keepOut = [[-1.1, 5.4, .3], [1.1, 3.9, .3], [-1.1, 1.6, .3], [1.1, .2, .3], [-1.1, -2.2, .3], [1.1, -3.6, .3], [-1.25, 4.6, .48], [1.25, 2.2, .48], [-1.25, -.9, .48], [1.25, -3.4, .48]];
+  const LB = new THREE.Matrix4().compose(V(0, .12, 0), new THREE.Quaternion(), V(1, .96, .94));
+  const tEyes = [-1, 1].map(sx => ({ p: V(sx * .042, .138, .113), q: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, sx * .32, 0)), sx }));
+  P.tiny = [];
+  for (let i = 0; i < TN; i++) {
+    const sg = segs[i % segs.length], sc = .42 + rnd() * .38;
+    let x = 0, z = 0;
+    for (let k = 0; k < 14; k++) {
+      x = sg.x + (rnd() - .5) * 1.25; z = sg.z + (rnd() - .5) * 2.45;
+      if (keepOut.every(([kx, kz, r]) => Math.hypot(x - kx, z - kz) > r) && P.tiny.every(o => Math.hypot(x - o.position.x, z - o.position.z) > .16)) break;
+    }
+    const o = new THREE.Object3D(); o.position.set(x, TOP + .05, z); o.scale.setScalar(sc);
+    const watching = rnd() < .32;
+    o.rotation.y = watching ? (rnd() - .5) * .9 : Math.PI + (rnd() - .5) * .8;
+    const leaves = [-1, 1].map(sx => new THREE.Matrix4().compose(V(0, .23, 0), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, sx * .2, -sx * (.8 + rnd() * .3))), V(1, 1, 1)));
+    o.userData = { leaves, lag: .015 + rnd() * .05, nb: rnd() * 6000, wake: 3.5 + rnd() * 4.5, blink: 1, bob: rnd() * 6 };
+    P.tiny.push(o);
+  }
+  const tm = new THREE.Matrix4(), em = new THREE.Matrix4(), es = new THREE.Vector3();
+  P.tinyUpdate = (t = 0) => {
+    P.tiny.forEach((o, i) => {
+      const u = o.userData; o.scale.y = o.scale.x * (1 + Math.sin(t * 1.6 + u.bob) * .025); o.updateMatrix();
+      tB.setMatrixAt(i, tm.multiplyMatrices(o.matrix, LB));
+      u.leaves.forEach((L, k) => tL.setMatrixAt(i * 2 + k, tm.multiplyMatrices(o.matrix, L)));
+      tEyes.forEach((e, k) => { em.compose(e.p, e.q, es.set(-e.sx, Math.max(.001, u.blink), 1)); tE.setMatrixAt(i * 2 + k, tm.multiplyMatrices(o.matrix, em)); });
+    });
+    tB.instanceMatrix.needsUpdate = tL.instanceMatrix.needsUpdate = tE.instanceMatrix.needsUpdate = true;
+  };
+  P.tinyUpdate();
+
   // the end of the room: a lab desk, the night-shift PC, a green banker's lamp, a specimen jar, a whiteboard
   const deskZ = -5.75, DH = .78;
   const deskTop = mesh(new THREE.BoxGeometry(2.2, .05, .9), std({ color: 0x2a2621, roughness: .5, metalness: .2 }), 0, DH - .025, deskZ + .1);
@@ -305,23 +345,79 @@ export function build(scene, mobile) {
   const paper = mesh(new THREE.PlaneGeometry(.2, .27), std({ map: paperT, roughness: .9 }), 0, .006, .01, clip); paper.rotation.x = -Math.PI / 2;
   // whiteboard on an easel to the left: how the bud works, in marker
   const wb = new THREE.Group(); wb.position.set(-1.65, 0, deskZ + .45); wb.rotation.y = .5; scene.add(wb);
-  for (const lx of [-.42, .42]) { const l = mesh(new THREE.BoxGeometry(.035, 1.7, .035), std({ color: 0x5a4632, roughness: .8 }), lx, .85, 0, wb); l.rotation.z = lx > 0 ? -.05 : .05; }
-  const board = tex(1024, 720, (g, w, h) => {
-    g.fillStyle = '#e7e6df'; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(120,130,140,.12)'; for (let i = 0; i < 30; i++) g.fillRect(rnd() * w, rnd() * h, 80 + rnd() * 200, 6 + rnd() * 20);
-    g.lineCap = 'round'; g.lineJoin = 'round';
-    const mk = (c, wd) => { g.strokeStyle = c; g.fillStyle = c; g.lineWidth = wd; };
-    const txt = (s, x, y, sz, c, rot = 0) => { g.save(); g.translate(x, y); g.rotate(rot); g.font = `${sz}px PX, VT, monospace`; mk(c, 1); g.fillText(s, 0, 0); g.restore(); };
-    const arrow = (x1, y1, x2, y2, c) => { mk(c, 7); g.beginPath(); g.moveTo(x1, y1); g.quadraticCurveTo((x1 + x2) / 2 + 10, (y1 + y2) / 2 - 14, x2, y2); g.stroke(); const a = Math.atan2(y2 - y1, x2 - x1); g.beginPath(); g.moveTo(x2, y2); g.lineTo(x2 - 26 * Math.cos(a - .5), y2 - 26 * Math.sin(a - .5)); g.moveTo(x2, y2); g.lineTo(x2 - 26 * Math.cos(a + .5), y2 - 26 * Math.sin(a + .5)); g.stroke(); };
-    txt('how the bud works', 70, 96, 64, '#1d2a6b', -.02);
-    txt('fees', 90, 250, 70, '#1d6b3a'); arrow(260, 228, 400, 228, '#1d2a6b');
-    mk('#1d6b3a', 8); g.beginPath(); g.arc(520, 225, 74, 0, 7); g.stroke(); txt('bud', 462, 248, 66, '#1d6b3a');
-    arrow(600, 190, 760, 120, '#1d2a6b'); arrow(610, 235, 770, 260, '#1d2a6b'); arrow(600, 280, 760, 400, '#1d2a6b');
-    txt('burn', 790, 140, 56, '#b02a2a'); txt('drop', 800, 285, 56, '#1d2a6b'); txt('dev', 790, 425, 56, '#1d6b3a');
-    txt('24/7. no sleep.', 120, 560, 58, '#b02a2a', -.03); mk('#b02a2a', 6); g.beginPath(); g.moveTo(118, 580); g.lineTo(560, 566); g.stroke();
-    txt('it watches the chart', 560, 650, 40, '#1d2a6b', .02);
-  });
-  mesh(new THREE.BoxGeometry(1.0, .7, .03), std({ color: 0xd9d9d6, roughness: .4 }), 0, 1.3, .02, wb);
-  mesh(new THREE.PlaneGeometry(.96, .66), std({ map: board, roughness: .35, emissive: 0xffffff, emissiveMap: board, emissiveIntensity: .12 }), 0, 1.3, .04, wb);
+  for (const lx of [-.46, .46]) { const l = mesh(new THREE.BoxGeometry(.035, 1.7, .035), std({ color: 0x2a2d2b, roughness: .5, metalness: .6 }), lx, .85, 0, wb); l.rotation.z = lx > 0 ? -.05 : .05; }
+  // the chart: a dark pixel panel, BAGWORK.SYS. fees go into the bud and out three ways. while you are close, packets run the wires,
+  // the trace scrolls and the eye in the corner looks around.
+  const CW = 1024, CH = 720, CG = '#5cf08a', CD = '#1f6a3a', CM = '#2f8a52', CWt = '#eafff0', CA = '#f2c14e', CR = '#ff6b6b', CC = '#7fe3c4';
+  const cpx = (g, x, y, c, sz = 8) => { g.fillStyle = c; g.fillRect(x, y, sz, sz); };
+  const cbox = (g, x, y, bw, bh, c, th = 4) => { g.fillStyle = c; g.fillRect(x, y, bw, th); g.fillRect(x, y + bh - th, bw, th); g.fillRect(x, y, th, bh); g.fillRect(x + bw - th, y, th, bh); };
+  const ctxt = (g, t, x, y, sz, c, f = 'PX') => { g.font = `${sz}px ${f}, VT, monospace`; g.fillStyle = c; g.fillText(t, x, y); };
+  const sprite = (g, rows, x, y, cell, pal) => rows.forEach((r, j) => [...r].forEach((ch, i) => { if (pal[ch]) cpx(g, x + i * cell, y + j * cell, pal[ch], cell); }));
+  const WIRES = { in: [[256, 330], [372, 330]], burn: [[604, 316], [680, 316], [680, 148], [768, 148]], drop: [[604, 330], [768, 330]], dev: [[604, 344], [680, 344], [680, 512], [768, 512]] };
+  const BUDPX = ['....kk....kk....', '...kggk..kggk...', '....kggkkggk....', '......kggk......', '....kkkkkkkk....', '...kkkkkkkkkk...', '..kkkwwkkwwkkk..', '..kkwwkkkkwwkk..', '..kkkkkkkkkkkk..', '..kkkGGGGGGkkk..', '...kkkkkkkkkk...', '....kkkkkkkk....', '....kk....kk....'];
+  const BUDX = 392, BUDY = 234;
+  const OUTB = [['burn', 'BURN', 'buy back · gone forever', CR, '#c98a8a', 102], ['drop', 'DROP', 'sol to the top 20', CC, '#6fb8a4', 284], ['dev', 'DEV', 'paid to whoever launched', CA, '#bfa060', 466]];
+  const chartBase = document.createElement('canvas'); chartBase.width = CW; chartBase.height = CH;
+  (g => {
+    g.fillStyle = '#020a05'; g.fillRect(0, 0, CW, CH);
+    g.strokeStyle = 'rgba(92,240,138,.055)'; g.lineWidth = 1; for (let x = 0; x <= CW; x += 16) { g.beginPath(); g.moveTo(x + .5, 0); g.lineTo(x + .5, CH); g.stroke(); } for (let y = 0; y <= CH; y += 16) { g.beginPath(); g.moveTo(0, y + .5); g.lineTo(CW, y + .5); g.stroke(); }
+    // header
+    g.fillStyle = '#0a2414'; g.fillRect(0, 0, CW, 64); g.fillStyle = CD; g.fillRect(0, 64, CW, 4);
+    ctxt(g, 'BAGWORK.SYS', 28, 46, 38, CG); ctxt(g, 'NODE 07', 560, 44, 24, CM); ctxt(g, 'LIVE', 924, 44, 24, CR);
+    ctxt(g, 'pid 0007   uptime 19d 04:13   sleep: none   owner: ???', 28, 98, 20, CM, 'VT');
+    // wires: dotted, square, arrowheads at the end
+    const wire = (pts, c) => { for (let i = 1; i < pts.length; i++) { const [x1, y1] = pts[i - 1], [x2, y2] = pts[i], n = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1)) / 16 | 0; for (let k = 0; k <= n; k++) cpx(g, Math.round(x1 + (x2 - x1) * k / Math.max(1, n)) - 4, Math.round(y1 + (y2 - y1) * k / Math.max(1, n)) - 4, c, 8); } };
+    const head = (x, y, c) => { cpx(g, x - 12, y - 4, c); for (const dy of [-12, -4, 4]) cpx(g, x - 20, y + dy, c); for (const dy of [-20, -12, -4, 4, 12]) cpx(g, x - 28, y + dy, c); };
+    wire(WIRES.in, CD); head(366, 330, CG);
+    wire(WIRES.burn, '#3a1a1a'); wire(WIRES.drop, '#16382e'); wire(WIRES.dev, '#3a2e12');
+    head(762, 148, CR); head(762, 330, CC); head(762, 512, CA);
+    // fees in
+    cbox(g, 40, 262, 214, 136, CG); ctxt(g, 'CREATOR', 62, 312, 28, CWt); ctxt(g, 'FEES', 62, 358, 38, CG);
+    [0, 2, -2, 1].forEach((dx, k) => { const y = 366 - k * 12; g.fillStyle = '#6b5216'; g.fillRect(194 + dx, y, 36, 12); g.fillStyle = CA; g.fillRect(194 + dx, y, 36, 7); g.fillStyle = '#fff3c4'; g.fillRect(198 + dx, y + 2, 8, 2); });
+    ctxt(g, 'pump.fun creator vault', 40, 424, 18, CM, 'VT');
+    // the bud
+    sprite(g, BUDPX, BUDX, BUDY, 12, { k: '#0b1f12', g: '#3fbf6a', w: CWt, G: CG });
+    g.shadowColor = CG; g.shadowBlur = 22; cbox(g, 372, 214, 232, 196, CG); g.shadowBlur = 0;
+    ctxt(g, 'BUD #0007', 412, 448, 30, CG); ctxt(g, 'awake · claims every pass', 398, 474, 18, CM, 'VT');
+    // three ways out
+    OUTB.forEach(([, n, sub, c, c2, y]) => { cbox(g, 768, y, 220, 92, c); ctxt(g, n, 790, y + 50, 34, c); ctxt(g, sub, 790, y + 78, 18, c2, 'VT'); });
+    sprite(g, ['..r...', '..rr..', '.rar..', '.raar.', 'rraarr', 'raaaar', '.rrrr.'], 932, 118, 6, { r: CR, a: CA });
+    sprite(g, ['...c...', '..ccc..', '.ccwcc.', '.cwccc.', 'ccccccc', 'ccccccc', '.ccccc.', '..ccc..'], 930, 296, 6, { c: CC, w: CWt });
+    ctxt(g, '$', 940, 514, 40, CA);
+    // the strange part
+    ctxt(g, 'FEE FLOW · 24H', 40, 566, 18, CM, 'VT'); g.fillStyle = '#0d2a17'; g.fillRect(40, 640, 560, 2);
+    ctxt(g, 'SLEEP: NOT FOUND', 40, 688, 24, CR, 'VT'); ctxt(g, 'IT WATCHES THE CHART', 330, 688, 24, CD, 'VT');
+    ctxt(g, '04:13:52 · TRAY 07 · DO NOT FEED AFTER MIDNIGHT', 600, 710, 16, CD, 'VT');
+    sprite(g, ['..wwww..', '.w....w.', 'w......w', 'w......w', '.w....w.', '..wwww..'], 876, 584, 10, { w: CG });
+  })(chartBase.getContext('2d'));
+  const chartC = document.createElement('canvas'); chartC.width = CW; chartC.height = CH; const cg = chartC.getContext('2d');
+  const board = new THREE.CanvasTexture(chartC); board.colorSpace = THREE.SRGBColorSpace; board.anisotropy = 4;
+  const along = (pts, f) => { const seg = []; let L = 0; for (let i = 1; i < pts.length; i++) { const l = Math.abs(pts[i][0] - pts[i - 1][0]) + Math.abs(pts[i][1] - pts[i - 1][1]); seg.push(l); L += l; }
+    let d = Math.max(0, Math.min(1, f)) * L; for (let i = 0; i < seg.length; i++) { if (d <= seg[i]) { const p0 = pts[i], p1 = pts[i + 1], k = seg[i] ? d / seg[i] : 0; return [p0[0] + (p1[0] - p0[0]) * k, p0[1] + (p1[1] - p0[1]) * k]; } d -= seg[i]; } return pts[pts.length - 1]; };
+  const snap = v => Math.round(v / 4) * 4;
+  P.chartTick = t => {
+    const g = cg; g.drawImage(chartBase, 0, 0);
+    const T = t % 2.6, loop = Math.floor(t / 2.6);
+    ctxt(g, 'JOBS ' + String(1337 + loop).padStart(6, '0'), 690, 44, 24, CG, 'VT');
+    if ((t * 1.25 | 0) % 2 === 0) cpx(g, 900, 26, CR, 14);
+    if (T < .9) { const [x, y] = along(WIRES.in, T / .9); cpx(g, snap(x) - 8, snap(y) - 8, CA, 16); }
+    const fed = T >= .9 && T < 1.35, blink = (t % 4.3) < .15;
+    if (fed || blink) BUDPX.forEach((r, j) => [...r].forEach((ch, i) => { if (ch === 'w') cpx(g, BUDX + i * 12, BUDY + j * 12, fed ? CA : '#0b1f12', 12); }));
+    if (fed) { g.globalAlpha = 1 - (T - .9) / .45; cbox(g, 368, 210, 240, 204, CWt, 3); g.globalAlpha = 1; }
+    if (T >= 1.1 && T < 2.1) OUTB.forEach(([k, , , c]) => { const [x, y] = along(WIRES[k], (T - 1.1) / 1); cpx(g, snap(x) - 6, snap(y) - 6, c, 12); });
+    if (T >= 2.1 && T < 2.55) { g.globalAlpha = 1 - (T - 2.1) / .45; OUTB.forEach(([, , , c, , y]) => cbox(g, 764, y - 4, 228, 100, CWt, 3)); g.globalAlpha = 1; }
+    g.strokeStyle = CG; g.lineWidth = 3; g.beginPath();
+    for (let x = 40; x < 600; x += 4) { const u = x + t * 46, y = 612 + Math.sin(u / 13) * 7 + Math.sin(u / 3.1) * 2 - ((u % 420) > 396 ? 26 : 0); x === 40 ? g.moveTo(x, y) : g.lineTo(x, y); }
+    g.stroke(); const cx = 40 + ((t * 120) % 560); g.fillStyle = 'rgba(234,255,240,.5)'; g.fillRect(cx, 584, 2, 56);
+    const look = Math.round(Math.sin(t * .6) * 1.4 + Math.sin(t * 1.7) * .4); cpx(g, 906 + look * 10, 604, CR, 20);
+    if ((t % 5.3) < .14) { const y = 110 + ((t * 7919 | 0) % 480); g.putImageData(g.getImageData(0, y, CW, 5), 22, y); }
+    g.fillStyle = 'rgba(0,0,0,.26)'; for (let y = 0; y < CH; y += 4) g.fillRect(0, y, CW, 2);
+    board.needsUpdate = true;
+  };
+  P.chartTick(0);
+  mesh(new THREE.BoxGeometry(1.04, .74, .04), std({ color: 0x141614, roughness: .45, metalness: .5 }), 0, 1.3, .015, wb);
+  const chart = new THREE.Mesh(new THREE.PlaneGeometry(.98, .69), new THREE.MeshBasicMaterial({ map: board, toneMapped: false, color: 0xc4c4c4 })); chart.position.set(0, 1.3, .04); wb.add(chart);
+  P.chartGlow = new THREE.PointLight(0x5cf08a, .25, 1.6, 2); P.chartGlow.position.set(-1.45, 1.3, deskZ + .85); scene.add(P.chartGlow);
   // shelves of jars on the back wall
   const shelf = new THREE.Group(); shelf.position.set(1.7, 0, deskZ - .7); scene.add(shelf);
   for (let k = 0; k < 4; k++) mesh(new THREE.BoxGeometry(1.4, .03, .35), benchM, 0, .4 + k * .45, 0, shelf);

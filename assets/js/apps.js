@@ -1,5 +1,6 @@
 // bud OS windows: welcome, launch.exe, the buddy list, a chat with every bud, the ledger, readme, display, recycle bin.
-import { installMore } from './apps2.js?v=1';
+import { installMore } from './apps2.js?v=2';
+import { installDash } from './apps3.js?v=2';
 
 export function installApps(X) {
   const { $, $$, esc, api, fsol, ftok, ago, short, solscan, pumpfun, acct, SOUND, ICONS, WAL } = X;
@@ -9,24 +10,34 @@ export function installApps(X) {
 
   // ================================================================ welcome
   A.welcome = {
-    title: 'welcome to bud OS', short: 'welcome', icon: 'welcome', w: 580, h: 540, nomax: true,
+    title: 'welcome to bud OS', short: 'welcome', icon: 'welcome', w: 610, h: 610, nomax: true,
     build(el) {
       el.innerHTML = `<div class="wel">
         <div class="wel-hero"><canvas class="wel-bud" width="96" height="96"></canvas><div><h2 class="h">every coin gets a bud.</h2><p class="sub">it does the bagwork while you sleep.</p></div></div>
-        <p>launch a pump.fun coin here and it comes with a <b class="ok">bud</b>: its own wallet, set as the coin’s creator. every minute the bud claims the creator fees and does the bagwork you picked:</p>
-        <ul class="wel-jobs"><li><b class="k-burn">burn</b> buys the coin back and burns it</li><li><b class="k-drop">drop</b> sends SOL to the top 20 holders</li><li><b class="k-dev">dev</b> pays you, the launcher</li></ul>
-        <p class="dim">you pick the mix once. it’s locked forever. every job is a public transaction.</p>
-        <div class="wel-stats"></div>
-        <div class="wel-go"><button class="btn go" data-o="launch">launch a coin</button><button class="btn" data-o="buds">meet the buds</button><button class="btn" data-o="term">open the terminal</button></div>
+        <ol class="wel-how">
+          <li><b>1</b><span><i>launch a coin</i> on pump.fun, right here. it comes with a bud.</span></li>
+          <li><b>2</b><span><i>the bud is the coin’s creator.</i> every minute it claims the creator fees.</span></li>
+          <li><b>3</b><span><i>it does the bagwork</i> you picked: <em class="k-burn">burn</em> it, <em class="k-drop">drop</em> SOL to holders, pay the <em class="k-dev">dev</em>.</span></li>
+        </ol>
+        <div class="wel-live"><div class="wel-pipe"></div><div class="wel-last"><span class="dot on"></span><span class="wel-lt">waiting for the next job…</span></div></div>
+        <div class="wel-stats">${[['buds', 'buds working'], ['claimed', 'fees claimed'], ['burned', 'bought back + burned'], ['dropped', 'dropped to holders']].map(([k, t]) => `<div><b data-k="${k}">0</b><span>${t}</span></div>`).join('')}</div>
+        <div class="wel-go"><button class="btn go" data-o="launch">launch a coin</button><button class="btn" data-o="pipe">watch it live</button><button class="btn" data-o="term">open the terminal</button></div>
         <label class="wel-no"><input type="checkbox"> don’t show this again</label></div>`;
       $$('[data-o]', el).forEach(b => b.onclick = () => { X.open(b.dataset.o); });
       const cb = $('.wel-no input', el); cb.checked = X.ls.get('bud:nowelcome') === '1'; cb.onchange = () => X.ls.set('bud:nowelcome', cb.checked ? '1' : '0');
-      const stats = () => { const t = X.TOTALS || {}; $('.wel-stats', el).innerHTML = [['buds working', t.buds ?? '—'], ['fees claimed', t.claimed != null ? fsol(t.claimed) + ' SOL' : '—'], ['burned with', t.burned != null ? fsol(t.burned) + ' SOL' : '—'], ['dropped to holders', t.dropped != null ? fsol(t.dropped) + ' SOL' : '—']].map(([k, v]) => `<div><b>${esc(String(v))}</b><span>${esc(k)}</span></div>`).join(''); };
+      const fmt = { buds: v => String(Math.round(v)), claimed: v => fsol(v) + ' SOL', burned: v => fsol(v) + ' SOL', dropped: v => fsol(v) + ' SOL' };
+      const stats = () => { const t = X.TOTALS || {}; $$('.wel-stats b', el).forEach(b => X.fx.countTo(b, t[b.dataset.k] || 0, fmt[b.dataset.k], 1100)); };
       stats(); X.on('buds', stats);
-      // the bud in the corner blinks and looks at your mouse
-      const c = $('.wel-bud', el), g = c.getContext('2d'); let mx = 0, t = 0;
-      addEventListener('pointermove', e => { const r = c.getBoundingClientRect(); mx = Math.max(-1, Math.min(1, (e.clientX - (r.left + r.width / 2)) / 200)); }, { passive: true });
-      const draw = () => { if (!document.body.contains(c)) return; t++; g.clearRect(0, 0, 96, 96); g.imageSmoothingEnabled = false; const img = X.SPR.pet; if (img) { g.drawImage(img, 0, Math.round(Math.sin(t / 14)) * 2, 96, 96); } setTimeout(() => requestAnimationFrame(draw), 60); };
+      // the machine, small and live: the same packets as bagwork.sys
+      const pipe = X.makePipe($('.wel-pipe', el), { small: true, isVisible: () => X.WM.isOpen('welcome') && !document.hidden });
+      const lastLine = it => X.fx.typeInto($('.wel-lt', el), `${it.bud_name}: ${it.text}`, 70);
+      const prime = () => { const r = X.RECENT || []; if (r.length) { lastLine(r[0]); pipe.replay(r.slice(0, 5)); } };
+      if ((X.RECENT || []).length) prime(); else X.on('feedinit', () => setTimeout(prime, 50));
+      X.on('feed', it => { if (['claim', 'burn', 'drop', 'dev', 'launch'].includes(it.kind)) lastLine(it); });
+      $('.wel-last', el).onclick = () => X.open('pipe');
+      // the bud in the corner bobs and blinks
+      const c = $('.wel-bud', el), g = c.getContext('2d'); let t = 0, blink = 0;
+      const draw = () => { if (!document.body.contains(c)) return; t++; g.clearRect(0, 0, 96, 96); g.imageSmoothingEnabled = false; const img = X.SPR.pet; if (img) { const y = Math.round(Math.sin(t / 14)) * 2; g.drawImage(img, 0, y, 96, 96); if (--blink > 0) { g.fillStyle = '#2c8a4c'; g.fillRect(18, 45 + y, 9, 9); g.fillRect(36, 45 + y, 9, 9); } else if (Math.random() < .015) blink = 3; } setTimeout(() => requestAnimationFrame(draw), 60); };
       draw();
     },
   };
@@ -120,7 +131,8 @@ export function installApps(X) {
       X.on('wallet', walBox);
       // steps
       function go(s) {
-        L.s = s; $$('[data-s]', el).forEach(x => x.hidden = +x.dataset.s !== s);
+        const back = s < (L.s || 0); L.s = s; $$('[data-s]', el).forEach(x => x.hidden = +x.dataset.s !== s);
+        const sec = $(`[data-s="${s}"]`, el); sec.classList.remove('slide-in', 'slide-back'); void sec.offsetWidth; sec.classList.add(back ? 'slide-back' : 'slide-in');
         $$('.steps li', el).forEach(li => { li.classList.toggle('on', +li.dataset.i === s); li.classList.toggle('done', +li.dataset.i < s); });
         $('[data-x=back]', el).style.visibility = s > 0 && s < 3 ? 'visible' : 'hidden';
         const nx = $('[data-x=next]', el); nx.hidden = s === 3; nx.textContent = s === 2 ? `pay ${cost().toFixed(3)} SOL & launch` : 'next ›';
@@ -187,7 +199,8 @@ export function installApps(X) {
         tick(); L.poll = setInterval(tick, 2500);
       }
       function done(s) {
-        X.ls.set('bud:pending', ''); SOUND.sfx('chime'); X.refresh();
+        X.ls.set('bud:pending', ''); SOUND.sfx('born'); X.refresh();
+        setTimeout(() => { const im = $('.born img', el); if (im) { const r = im.getBoundingClientRect(); X.fx.burst(r.left + r.width / 2, r.top + r.height / 2, { n: 40, speed: 190, colors: ['#5cf08a', '#f2c14e', '#c6ffd6', '#7fe3c4', '#ff8a5c'] }); } }, 60);
         $('.lw-done', el).innerHTML = `<div class="born"><img src="${X.avatarURL(s.mint, 64)}" alt=""><div><h3 class="h">${esc(s.budName)} is awake.</h3><p class="dim">$${esc(s.symbol)} is live on pump.fun and ${esc(s.budName)} is its creator. it starts the bagwork as soon as fees come in.</p>
           <p>${link(pumpfun(s.mint), 'open on pump.fun ↗')} · ${link(acct(s.wallet), 'the bud’s wallet ↗')}${s.create_sig ? ' · ' + link(solscan(s.create_sig), 'create tx ↗') : ''}</p>
           <div class="row"><button class="btn go" type="button" data-x="chat">talk to ${esc(s.budName)}</button><button class="btn" type="button" data-x="again">launch another</button></div></div></div>`;
@@ -247,6 +260,7 @@ export function installApps(X) {
         const legends = list.filter(b => b.level === 'legend');
         const grp = (t, arr, open = true) => arr.length ? `<details ${open ? 'open' : ''}><summary>${esc(t)} <span>(${arr.length})</span></summary>${arr.map(row).join('')}</details>` : '';
         box.innerHTML = (BL.tab === 'mine' ? grp('my buds', list) : grp('legends', legends) + grp('working now', working.filter(b => b.level !== 'legend')) + grp('on the clock', rest.filter(b => b.level !== 'legend')));
+        if (BL.anim !== BL.tab) { BL.anim = BL.tab; X.fx.stagger($$('.br', box), 'in', 28, 80); }
         $$('.br', box).forEach(r => { r.onclick = e => { if (X.MOBILE || e.detail >= 2) X.openBud(r.dataset.m); else { $$('.br.sel', box).forEach(x => x.classList.remove('sel')); r.classList.add('sel'); } }; r.ondblclick = () => X.openBud(r.dataset.m); });
         // new buds coming online get the door sound
         list.forEach(b => { if (BL.primed && !BL.seen.has(b.mint)) { SOUND.sfx('buddy'); const r = $(`.br[data-m="${CSS.escape(b.mint)}"]`, box); r && r.classList.add('new'); } BL.seen.add(b.mint); });
@@ -299,7 +313,8 @@ export function installApps(X) {
       <form class="ch-in"><input placeholder="say something to ${esc(b.budName)}…" maxlength="120"><button class="btn" type="submit">send</button></form>
       <div class="ch-links">${link(pumpfun(b.mint), 'pump.fun ↗')} ${link(acct(b.wallet), 'bud wallet ↗')} ${link('https://dexscreener.com/solana/' + b.mint, 'chart ↗')}</div></div>`;
     const log = $('.ch-log', el), typing = $('.ch-typing', el);
-    const stats = () => { $('.ch-stats', el).innerHTML = [['claimed', fsol(b.claimed) + ' SOL'], ['burned', ftok(b.burnedTokens)], ['dropped', fsol(b.dropped) + ' SOL'], ['dev', fsol(b.devPaid) + ' SOL'], ['jobs', b.jobs]].map(([k, v]) => `<div><b>${esc(String(v))}</b><span>${k}</span></div>`).join(''); };
+    $('.ch-stats', el).innerHTML = [['claimed', 'claimed'], ['burned', 'burned'], ['dropped', 'dropped'], ['devPaid', 'dev'], ['jobs', 'jobs']].map(([k, t]) => `<div><b data-k="${k}">0</b><span>${t}</span></div>`).join('');
+    const stats = () => { $$('.ch-stats b', el).forEach(x => { const k = x.dataset.k; if (k === 'burned') X.fx.countTo(x, Number(b.burnedTokens || 0), v => ftok(v)); else if (k === 'jobs') X.fx.countTo(x, b.jobs || 0, v => String(Math.round(v))); else X.fx.countTo(x, b[k] || 0, v => fsol(v) + ' SOL'); }); };
     const msg = (who, html, t, cls = '') => { const d = document.createElement('div'); d.className = `msg ${who} ${cls}`; d.innerHTML = `<div class="mb">${html}</div><time>${t ? new Date(t).toTimeString().slice(0, 5) : ''}</time>`; log.appendChild(d); log.scrollTop = log.scrollHeight; return d; };
     const jobHtml = l => `<span class="k-${esc(l.kind)}">${esc(l.kind)}</span> ${esc(l.text)}${l.sig ? ` ${link(solscan(l.sig), 'tx ↗')}` : ''}`;
     stats();
@@ -331,7 +346,8 @@ export function installApps(X) {
         <div class="lg-t scroll"><table><thead><tr><th>when</th><th>bud</th><th>coin</th><th>job</th><th>what happened</th><th>amount</th><th>tx</th></tr></thead><tbody></tbody></table><button class="btn ghost lg-more" type="button">load older</button></div></div>`;
       const tb = $('tbody', el);
       const rowH = (r, fresh) => `<tr class="${fresh ? 'fresh' : ''}" data-m="${esc(r.mint)}"><td class="mute">${esc(ago(r.at))}</td><td><a class="budl" data-bud="${esc(r.mint)}">${esc(r.bud_name)}</a></td><td class="ok">$${esc(r.symbol)}</td><td><span class="k-${esc(r.kind)}">${esc(r.kind)}</span></td><td class="lg-x">${esc(r.text)}</td><td class="am">${r.sol != null ? fsol(r.sol) + ' SOL' : ''}</td><td>${r.sig ? link(solscan(r.sig), short(r.sig)) : ''}</td></tr>`;
-      const tot = () => { const t = X.TOTALS || {}; $('.lg-tot', el).innerHTML = [['fees claimed', fsol(t.claimed) + ' SOL'], ['bought back + burned', fsol(t.burned) + ' SOL'], ['dropped to holders', fsol(t.dropped) + ' SOL'], ['paid to devs', fsol(t.dev) + ' SOL'], ['jobs', t.jobs ?? '—']].map(([k, v]) => `<div><b>${esc(String(v))}</b><span>${k}</span></div>`).join(''); };
+      $('.lg-tot', el).innerHTML = [['claimed', 'fees claimed'], ['burned', 'bought back + burned'], ['dropped', 'dropped to holders'], ['dev', 'paid to devs'], ['jobs', 'jobs']].map(([k, t]) => `<div><b data-k="${k}">0</b><span>${t}</span></div>`).join('');
+      const tot = () => { const t = X.TOTALS || {}; $$('.lg-tot b', el).forEach(b => X.fx.countTo(b, t[b.dataset.k] || 0, b.dataset.k === 'jobs' ? v => String(Math.round(v)) : v => fsol(v) + ' SOL')); };
       async function load(reset) {
         const params = { limit: 60 }; if (LG.kind !== 'all') params.kind = LG.kind; if (!reset && LG.oldest) params.before = LG.oldest;
         const j = await api('feed', { params }).catch(() => ({ items: [] }));
@@ -406,6 +422,6 @@ export function installApps(X) {
     },
   };
 
-  Object.assign(A, installMore(X));
+  Object.assign(A, installMore(X), installDash(X));
   return A;
 }
