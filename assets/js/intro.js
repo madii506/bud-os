@@ -197,7 +197,7 @@ export async function run({ canvas, onEnter, onReady, mobile, status, audio }) {
   let NOW = performance.now();
   Promise.resolve(status).then(s => { st.status = s; }).catch(() => {});
   const say = runs => term.push(Array.isArray(runs[0]) ? runs : [[runs[0], runs[1]]]);
-  const hdd = on => { P.hddMat.color.setHex(on ? 0xffb648 : 0x2a1c08); if (on && NOW - st.hddT > 260) { st.hddT = NOW; sfx('hdd'); } };
+  const hdd = on => { P.hddMat.color.setHex(on ? 0xffb648 : 0x2a1c08); };
   const lightning = (strength = 1) => { st.bolt.push([NOW, strength], [NOW + 150, strength * .6]); sfx('thunder', strength); };
   // the bars light from the door to the back, in pairs
   const order = [...P.bars].sort((a, b) => b.z - a.z);
@@ -206,7 +206,6 @@ export async function run({ canvas, onEnter, onReady, mobile, status, audio }) {
   const Q = []; let qi = 0;
   const ev = (ms, fn, soft) => Q.push({ ms, fn, soft });
   function flush() { const t = NOW - st.t0; while (qi < Q.length && (st.skip || Q[qi].ms <= t)) { const e = Q[qi++]; if (!(st.skip && e.soft)) e.fn(); } }
-  ev(500, () => sfx('creak'), true);
   ev(1600, () => lightning(1), true);
   order.forEach((b, i) => ev(2600 + Math.floor(i / 2) * 1500 + (i % 2) * 130, () => { b.t0 = NOW; b.want = 1; if (i % 2 === 0) sfx('clunk', .7 + Math.random() * .3); }));
   ev(9000, () => lightning(.45), true);

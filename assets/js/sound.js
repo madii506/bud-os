@@ -68,12 +68,20 @@ export function createSound(store) {
     s.connect(f).connect(g).connect(bus); s.start(t, rnd() * 1.5); s.stop(t + dur + .05); return g;
   }
   // ---------------------------------------------------------------- the sequencer: eighth notes, scheduled a little ahead. the melody walks, it never jumps.
-  let walk = 2;
+  let walk = 2, padBlk = -1;
   function schedule() {
-    const ahead = ctx.currentTime + .3;
+    const now = ctx.currentTime, H = BEAT / 2;
+    if (nextT < now + .02) {
+      // the page was busy (the greenhouse building itself) and we fell behind: skip ahead quietly, never fire a pile of late notes
+      const n = Math.ceil((now + .05 - nextT) / H); step += n; nextT += n * H;
+      const blk = Math.floor(step / 16), ch = PROG[blk % 4];
+      if (blk !== padBlk && step % 16 !== 0) { padBlk = blk; const rem = (16 - step % 16) * H; pad(ch.pad, now + .05, rem + .4, scene === 'desk' ? .045 : .055); bass(ch.bass, now + .05, rem, scene === 'desk' ? .12 : .08); }
+    }
+    const ahead = now + .6;
     while (nextT < ahead) {
       const t = nextT, s8 = step % 16, ch = PROG[Math.floor(step / 16) % 4], desk = scene === 'desk';
       if (s8 === 0) {
+        padBlk = Math.floor(step / 16);
         pad(ch.pad, t, BAR * 2 + .4, desk ? .045 : .055);
         bass(ch.bass, t, BAR * 2, desk ? .12 : .08);
         if (rnd() < (desk ? .7 : .45)) [0, 2, 4].forEach((k, i) => keys(ch.keys[k], t + i * BEAT * .5 + rnd() * .02, (desk ? .05 : .04) - i * .006, 4));
@@ -101,20 +109,19 @@ export function createSound(store) {
     if (timer) return;
     nextT = ctx.currentTime + .15; step = 0;
     musicBus.gain.cancelScheduledValues(ctx.currentTime); musicBus.gain.setValueAtTime(musicBus.gain.value, ctx.currentTime); musicBus.gain.linearRampToValueAtTime(scene === 'desk' ? .78 : .86, ctx.currentTime + 6);
-    timer = setInterval(schedule, 60); schedule();
+    timer = setInterval(schedule, 50); schedule();
   }
   // ---------------------------------------------------------------- the room's noises
   const SFX = {
-    beep: t => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'square'; o.frequency.value = 988; g.gain.setValueAtTime(.05, t); g.gain.setValueAtTime(0, t + .13); o.connect(g).connect(sfxBus); o.start(t); o.stop(t + .15); },
+    beep: t => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.value = 880; g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.035, t + .01); g.gain.exponentialRampToValueAtTime(.0005, t + .35); o.connect(g).connect(sfxBus); o.start(t); o.stop(t + .4); },
     power: t => { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.setValueAtTime(90, t); o.frequency.exponentialRampToValueAtTime(38, t + .3); g.gain.setValueAtTime(.28, t); g.gain.exponentialRampToValueAtTime(.001, t + .45); o.connect(g).connect(sfxBus); o.start(t); o.stop(t + .5); },
     click: t => { noise(t, .025, 'bandpass', 2400, 1.2, .16, sfxBus); noise(t + .05, .02, 'bandpass', 1600, 1.2, .08, sfxBus); },
     hdd: t => { for (let i = 0; i < 3; i++) noise(t + i * (.03 + rnd() * .04), .008, 'bandpass', 3400 + rnd() * 1200, 3, .02, sfxBus); },
     key: t => { noise(t, .035, 'bandpass', 2600 + rnd() * 900, 1.4, .09, sfxBus); const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = 150 + rnd() * 40; g.gain.setValueAtTime(.06, t); g.gain.exponentialRampToValueAtTime(.001, t + .06); o.connect(g).connect(sfxBus); o.start(t); o.stop(t + .07); },
-    thunder: (t, a = 1) => { const g = noise(t, 2.6, 'lowpass', 180, .6, .5 * a, sfxBus); noise(t + .05, .4, 'lowpass', 900, .5, .12 * a, sfxBus); },
+    thunder: (t, a = 1) => { noise(t, 2.8, 'lowpass', 150, .5, .36 * a, sfxBus); },
     creak: t => { const o = ctx.createOscillator(), g = ctx.createGain(), f = ctx.createBiquadFilter(); o.type = 'sawtooth'; o.frequency.setValueAtTime(70, t); o.frequency.linearRampToValueAtTime(110, t + .9); o.frequency.linearRampToValueAtTime(85, t + 1.5);
       f.type = 'bandpass'; f.frequency.value = 700; f.Q.value = 6; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.05, t + .2); g.gain.linearRampToValueAtTime(.03, t + 1.2); g.gain.linearRampToValueAtTime(0, t + 1.6); o.connect(f).connect(g).connect(sfxBus); o.start(t); o.stop(t + 1.7); },
-    clunk: (t, a = 1) => { noise(t, .09, 'lowpass', 600, 1, .3 * a, sfxBus); const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(60, t + .12); g.gain.setValueAtTime(.18 * a, t); g.gain.exponentialRampToValueAtTime(.001, t + .2); o.connect(g).connect(sfxBus); o.start(t); o.stop(t + .25);
-      const h = ctx.createOscillator(), hg = ctx.createGain(); h.type = 'sawtooth'; h.frequency.value = 120; hg.gain.setValueAtTime(0, t + .05); hg.gain.linearRampToValueAtTime(.006 * a, t + .2); hg.gain.exponentialRampToValueAtTime(.0005, t + 2.4); const hf = ctx.createBiquadFilter(); hf.type = 'lowpass'; hf.frequency.value = 400; h.connect(hf).connect(hg).connect(sfxBus); h.start(t); h.stop(t + 2.5); },
+    clunk: (t, a = 1) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(55, t + .14); g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.12 * a, t + .01); g.gain.exponentialRampToValueAtTime(.0005, t + .3); o.connect(g).connect(sfxBus); o.start(t); o.stop(t + .32); },
     squeak: t => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'square'; o.frequency.setValueAtTime(900, t); o.frequency.exponentialRampToValueAtTime(1500, t + .06); o.frequency.exponentialRampToValueAtTime(700, t + .14); g.gain.setValueAtTime(.03, t); g.gain.exponentialRampToValueAtTime(.0005, t + .16); o.connect(g).connect(sfxBus); o.start(t); o.stop(t + .18); },
     buddy: t => { [[67, 0], [72, .09], [79, .18]].forEach(([m, d]) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'triangle'; o.frequency.value = hz(m); g.gain.setValueAtTime(.05, t + d); g.gain.exponentialRampToValueAtTime(.0005, t + d + .4); o.connect(g).connect(sfxBus); o.start(t + d); o.stop(t + d + .45); }); },
     job: t => { [[84, 0], [91, .06]].forEach(([m, d]) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.value = hz(m); g.gain.setValueAtTime(.035, t + d); g.gain.exponentialRampToValueAtTime(.0005, t + d + .5); o.connect(g).connect(sfxBus); o.start(t + d); o.stop(t + d + .55); }); },
@@ -128,10 +135,8 @@ export function createSound(store) {
     close: t => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'triangle'; o.frequency.setValueAtTime(560, t); o.frequency.exponentialRampToValueAtTime(380, t + .07); g.gain.setValueAtTime(.03, t); g.gain.exponentialRampToValueAtTime(.0005, t + .12); o.connect(g).connect(sfxBus); o.start(t); o.stop(t + .14); },
     ding: t => { [76, 71].forEach((m, i) => { const at = t + i * .14, o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.value = hz(m); g.gain.setValueAtTime(.06, at); g.gain.exponentialRampToValueAtTime(.0005, at + .9); o.connect(g).connect(sfxBus); o.start(at); o.stop(at + 1); }); },
     tick: t => { noise(t, .02, 'highpass', 4000, .7, .05, sfxBus); },
-    crton: t => { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.setValueAtTime(72, t); o.frequency.exponentialRampToValueAtTime(40, t + .5); g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.2, t + .03); g.gain.exponentialRampToValueAtTime(.0005, t + .7); o.connect(g).connect(sfxBus); o.start(t); o.stop(t + .75);
-      const h = ctx.createOscillator(), hg = ctx.createGain(), hf = ctx.createBiquadFilter(); h.type = 'sawtooth'; h.frequency.value = 60; hf.type = 'lowpass'; hf.frequency.value = 420; hg.gain.setValueAtTime(.04, t + .02); hg.gain.exponentialRampToValueAtTime(.0005, t + 1.3); h.connect(hf).connect(hg).connect(sfxBus); h.start(t); h.stop(t + 1.35);
-      noise(t + .04, .4, 'highpass', 2800, .5, .035, sfxBus);
-      const w = ctx.createOscillator(), wg = ctx.createGain(); w.type = 'sine'; w.frequency.value = 7600; wg.gain.setValueAtTime(.0001, t); wg.gain.exponentialRampToValueAtTime(.004, t + .3); wg.gain.exponentialRampToValueAtTime(.0001, t + 1.8); w.connect(wg).connect(sfxBus); w.start(t); w.stop(t + 1.9); },
+    crton: t => { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.setValueAtTime(70, t); o.frequency.exponentialRampToValueAtTime(42, t + .5); g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.16, t + .03); g.gain.exponentialRampToValueAtTime(.0005, t + .6); o.connect(g).connect(sfxBus); o.start(t); o.stop(t + .65);
+      [62, 69, 74].forEach((m, i) => { const at = t + .18 + i * .09, k = ctx.createOscillator(), kg = ctx.createGain(); k.type = 'sine'; k.frequency.value = hz(m) * 2; kg.gain.setValueAtTime(.0001, at); kg.gain.exponentialRampToValueAtTime(.03, at + .02); kg.gain.exponentialRampToValueAtTime(.0005, at + 1.4); k.connect(kg).connect(sfxBus); k.start(at); k.stop(at + 1.5); }); },
     crtoff: t => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(900, t); o.frequency.exponentialRampToValueAtTime(60, t + .35); g.gain.setValueAtTime(.05, t); g.gain.exponentialRampToValueAtTime(.0005, t + .4); o.connect(g).connect(sfxBus); o.start(t); o.stop(t + .45); noise(t, .2, 'bandpass', 1200, .8, .04, sfxBus); },
     min: t => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'triangle'; o.frequency.setValueAtTime(720, t); o.frequency.exponentialRampToValueAtTime(300, t + .14); g.gain.setValueAtTime(.025, t); g.gain.exponentialRampToValueAtTime(.0005, t + .16); o.connect(g).connect(sfxBus); o.start(t); o.stop(t + .18); },
     pop: t => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(420, t); o.frequency.exponentialRampToValueAtTime(980, t + .07); g.gain.setValueAtTime(.04, t); g.gain.exponentialRampToValueAtTime(.0005, t + .12); o.connect(g).connect(sfxBus); o.start(t); o.stop(t + .14); },
