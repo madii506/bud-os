@@ -188,6 +188,35 @@ async function feed(req, res) {
     WHERE l.n > $1 AND ($2 = 0 OR l.n < $2) AND l.kind = ANY($3) ORDER BY l.n DESC LIMIT $4`, [after, before, kinds, lim]);
   L.send(res, 200, { ok: true, items, last: items[0] ? Number(items[0].n) : after }, L.CACHE(4, 12));
 }
+// the dashboard: activity in buckets (24 hours by the hour, the last hour by 2 minutes), the top buds, the newest buds
+const KINDS = ['claim', 'burn', 'drop', 'dev'];
+async function stats(req, res) {
+  if (!L.dbReady()) return L.send(res, 200, { ok: true, offline: true, hours: [], mins: [], top: [], fresh: [], day: {}, totals: {} });
+  await L.ready();
+  const bucket = (rows, born, n) => { const out = Array.from({ length: n }, (_, i) => ({ i, claims: 0, jobs: 0, launches: 0, claim: 0, burn: 0, drop: 0, dev: 0 }));
+    for (const r of rows) { const b = out[Math.max(0, Math.min(n - 1, r.b))]; if (r.kind === 'claim') b.claims += r.n; else b.jobs += r.n; b[r.kind] += +Number(r.sol || 0).toFixed(6); }
+    for (const r of born) out[Math.max(0, Math.min(n - 1, r.b))].launches += r.n;
+    return out; };
+  const [hr, mn, hb, mb, top, fresh, day, born, t, tick] = await Promise.all([
+    L.q(`SELECT floor(extract(epoch from (now() - at)) / 3600)::int AS b, kind, count(*)::int AS n, COALESCE(sum(sol),0)::float8 AS sol FROM bud_log WHERE at > now() - interval '24 hours' AND kind = ANY($1) GROUP BY 1, 2`, [KINDS]),
+    L.q(`SELECT floor(extract(epoch from (now() - at)) / 120)::int AS b, kind, count(*)::int AS n, COALESCE(sum(sol),0)::float8 AS sol FROM bud_log WHERE at > now() - interval '60 minutes' AND kind = ANY($1) GROUP BY 1, 2`, [KINDS]),
+    L.q(`SELECT floor(extract(epoch from (now() - live_at)) / 3600)::int AS b, count(*)::int AS n FROM bud_coins WHERE live_at > now() - interval '24 hours' GROUP BY 1`),
+    L.q(`SELECT floor(extract(epoch from (now() - live_at)) / 120)::int AS b, count(*)::int AS n FROM bud_coins WHERE live_at > now() - interval '60 minutes' GROUP BY 1`),
+    L.q(`SELECT ${COLS} FROM bud_coins WHERE state='live' ORDER BY claimed DESC, live_at ASC LIMIT 8`),
+    L.q(`SELECT ${COLS} FROM bud_coins WHERE state='live' ORDER BY live_at DESC NULLS LAST LIMIT 5`),
+    L.q(`SELECT count(*) FILTER (WHERE kind='claim')::int AS claims, count(*) FILTER (WHERE kind IN ('burn','drop','dev'))::int AS jobs,
+      count(DISTINCT id) FILTER (WHERE kind='claim')::int AS working, COALESCE(sum(sol) FILTER (WHERE kind='claim'),0)::float8 AS claimed FROM bud_log WHERE at > now() - interval '24 hours'`),
+    L.q(`SELECT count(*)::int AS n FROM bud_coins WHERE live_at > now() - interval '24 hours'`),
+    L.q(`SELECT count(*)::int AS buds, COALESCE(sum(claimed),0) AS claimed, COALESCE(sum(burned_sol),0) AS burned, COALESCE(sum(dropped),0) AS dropped, COALESCE(sum(dev_paid),0) AS dev,
+      COALESCE(sum(jobs),0)::int AS jobs, COALESCE(sum(drops),0)::int AS drops FROM bud_coins WHERE state='live'`),
+    L.q(`SELECT v FROM bud_meta WHERE k='tick_done'`).catch(() => []),
+  ]);
+  const d = day[0] || {}, tt = t[0] || {};
+  L.send(res, 200, { ok: true, hours: bucket(hr, hb, 24), mins: bucket(mn, mb, 30), top: top.map(pub), fresh: fresh.map(pub),
+    day: { claims: d.claims || 0, jobs: d.jobs || 0, launches: (born[0] && born[0].n) || 0, working: d.working || 0, claimed: +Number(d.claimed || 0).toFixed(4) },
+    totals: { buds: tt.buds || 0, claimed: SOL(tt.claimed || 0), burned: SOL(tt.burned || 0), dropped: SOL(tt.dropped || 0), dev: SOL(tt.dev || 0), jobs: tt.jobs || 0, drops: tt.drops || 0 },
+    tickAt: tick[0] ? Number(tick[0].v) : null, now: Date.now() }, L.CACHE(10, 40));
+}
 async function meta(req, res) {
   const qy = L.query(req);
   if (!L.dbReady()) return L.send(res, 404, { error: 'not found' });
@@ -232,6 +261,7 @@ module.exports = async (req, res) => {
     if (op === 'buds') return await buds(req, res);
     if (op === 'bud') return await bud(req, res);
     if (op === 'feed') return await feed(req, res);
+    if (op === 'stats') return await stats(req, res);
     if (op === 'meta') return await meta(req, res);
     if (op === 'img') { req.query = { ...(L.query(req)), img: L.query(req).id }; return await meta(req, res); }
     if (op === 'tick') { if (!L.dbReady()) return L.send(res, 200, { ok: false, error: 'engine offline: no database' }); return L.send(res, 200, await E.tick(40000)); }
