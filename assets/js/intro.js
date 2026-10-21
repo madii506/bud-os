@@ -6,7 +6,7 @@ import { EffectComposer } from './vendor/EffectComposer.js';
 import { RenderPass } from './vendor/RenderPass.js';
 import { UnrealBloomPass } from './vendor/UnrealBloomPass.js';
 import { OutputPass } from './vendor/OutputPass.js';
-import { build, V } from './greenhouse.js?v=2';
+import { build, V } from './greenhouse.js?v=3';
 
 const clamp01 = k => Math.max(0, Math.min(1, k));
 const ease = k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;

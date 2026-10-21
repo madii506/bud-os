@@ -1,6 +1,6 @@
 // bud OS windows: welcome, launch.exe, the buddy list, a chat with every bud, the ledger, readme, display, recycle bin.
-import { installMore } from './apps2.js?v=2';
-import { installDash } from './apps3.js?v=2';
+import { installMore } from './apps2.js?v=3';
+import { installDash } from './apps3.js?v=3';
 
 export function installApps(X) {
   const { $, $$, esc, api, fsol, ftok, ago, short, solscan, pumpfun, acct, SOUND, ICONS, WAL } = X;

@@ -1,12 +1,12 @@
 // bud OS: the greenhouse, the dive through the night-shift PC, a short boot, then a dark phosphor desktop where every
 // window works and the buds live on the taskbar. The windows, the terminal and the pets all read the same live engine.
-import { createSound } from './sound.js?v=2';
-import * as WAL from './wallet.js?v=2';
-import { ICONS, SPR, avatarURL, hueOf, tinted, walkFrames } from './sprites.js?v=2';
-import { installApps } from './apps.js?v=2';
-import { installTerm } from './term.js?v=2';
-import { installPets } from './pets.js?v=2';
-import * as FX from './fx.js?v=2';
+import { createSound } from './sound.js?v=3';
+import * as WAL from './wallet.js?v=3';
+import { ICONS, SPR, avatarURL, hueOf, tinted, walkFrames } from './sprites.js?v=3';
+import { installApps } from './apps.js?v=3';
+import { installTerm } from './term.js?v=3';
+import { installPets } from './pets.js?v=3';
+import * as FX from './fx.js?v=3';
 
 const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -72,7 +72,7 @@ async function boot() {
   try {
     const gl = document.createElement('canvas').getContext('webgl2') || document.createElement('canvas').getContext('webgl');
     if (!gl) throw new Error('no webgl');
-    const { run } = await import('./intro.js?v=2');
+    const { run } = await import('./intro.js?v=3');
     // the music button: no words, just bars that move with the music. off shows a slash.
     const sb = $('#isound');
     if (sb) {
