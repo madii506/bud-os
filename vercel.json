@@ -9,7 +9,7 @@
   "rewrites": [
     { "source": "/m/:id", "destination": "/api/bud?op=meta&id=:id" },
     { "source": "/i/:id", "destination": "/api/bud?op=img&id=:id" },
-    { "source": "/api/:op(config|prepare|paybuild|relay|status|buds|bud|feed|tick|blockhash|selftest)", "destination": "/api/bud?op=:op" }
+    { "source": "/api/:op(config|prepare|paybuild|relay|status|buds|bud|feed|stats|tick|blockhash|selftest)", "destination": "/api/bud?op=:op" }
   ],
   "headers": [
     { "source": "/assets/fonts/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] },

@@ -22,32 +22,23 @@
 <meta name="twitter:image" content="https://bud-os.vercel.app/assets/img/og.jpg">
 <link rel="preload" href="/assets/fonts/VT323-Regular.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/assets/fonts/PixelifySans.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="/assets/css/bud.css?v=1">
+<link rel="stylesheet" href="/assets/css/bud.css?v=2">
+<link rel="modulepreload" href="/assets/js/os.js?v=2">
+<link rel="modulepreload" href="/assets/js/vendor/three.module.min.js">
+<link rel="modulepreload" href="/assets/js/intro.js?v=2">
+<link rel="modulepreload" href="/assets/js/greenhouse.js?v=2">
 </head>
 <body class="booting">
 
 <!-- 1. the greenhouse -->
 <div id="intro" aria-label="bud: the greenhouse">
   <canvas id="room" aria-hidden="true"></canvas>
-  <div class="iload" id="iload"><span>bud</span><i></i></div>
-  <button class="iskip" id="iskip" type="button">skip ›</button>
-  <button class="isound" id="isound" type="button" aria-pressed="true">♪ sound on</button>
   <div class="ihint" id="ihint">type on the PC, or press enter</div>
   <div class="itouch" id="itouch"><button type="button" data-go="">enter ↵</button><button type="button" data-go="launch">launch</button><button type="button" data-go="buds">buds</button><button type="button" data-go="terminal">terminal</button></div>
   <pre class="ifall" id="ifall" hidden></pre>
-  <div class="iflash" id="iflash"></div>
 </div>
 
-<!-- 2. the boot -->
-<div id="boot" hidden>
-  <div class="bl" aria-hidden="true"><i></i></div>
-  <div class="bt">bud OS</div>
-  <div class="bv">night shift edition · v2.0</div>
-  <div class="bb"><i></i><img class="bw" src="/assets/img/bud-pet.png" alt=""></div>
-  <div class="bs">loading…</div>
-</div>
-
-<!-- 3. the desktop -->
+<!-- 2. the desktop -->
 <div id="desk" hidden>
   <canvas id="wall" aria-hidden="true"></canvas>
   <div id="icons" aria-label="desktop"></div>
@@ -69,6 +60,6 @@
 <div id="zoomr" aria-hidden="true"></div>
 <div id="crt" aria-hidden="true"></div>
 
-<script type="module" src="/assets/js/os.js?v=1"></script>
+<script type="module" src="/assets/js/os.js?v=2"></script>
 </body>
 </html>
